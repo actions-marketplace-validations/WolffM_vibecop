@@ -1,64 +1,80 @@
 # vibeCop Configuration
 #
-# This file customizes vibeCop behavior for your repository.
-# All fields are optional - defaults will be used if omitted.
-#
+# Optional configuration file to customize vibeCop behavior.
 # Place this file at your repository root as `vibecop.yml`
+#
+# All fields are optional - sensible defaults are used if omitted.
+# Delete any sections you don't need to customize.
 
 version: 1
 
-# Schedule settings
-schedule:
-  cadence: weekly        # daily | weekly | monthly
-  deep_scan: false       # Enable all tools regardless of cadence
-
-# Trunk configuration
-trunk:
-  enabled: true
-  arguments: "check"
-  extra_args: []
-
-# Tool-specific settings
+# ═══════════════════════════════════════════════════════════════════
+# TOOL SETTINGS
+# ═══════════════════════════════════════════════════════════════════
 # enabled: auto | true | false | daily | weekly | monthly
+#   - auto: Run if relevant config exists in repo
+#   - true/false: Always/never run
+#   - daily/weekly/monthly: Run only at that cadence or deeper
 tools:
+  # TypeScript compiler - catches type errors
   tsc:
-    enabled: auto        # Run if tsconfig.json exists
-  eslint:
-    enabled: auto        # Run if eslint config exists
-  prettier:
-    enabled: auto        # Run if prettier config exists
+    enabled: auto
+
+  # jscpd - finds copy-paste code
   jscpd:
-    enabled: weekly      # Run on weekly+ cadence
-    min_tokens: 70       # Minimum tokens for duplicate detection
-    threshold: 1         # Duplication percentage threshold
+    enabled: weekly
+    min_tokens: 70 # Minimum tokens to consider duplicate
+
+  # dependency-cruiser - finds circular dependencies
   dependency_cruiser:
     enabled: weekly
-    config_path: ".dependency-cruiser.js"
-  knip:
-    enabled: monthly     # Run on monthly cadence only
-    config_path: "knip.json"
-  semgrep:
-    enabled: monthly
-    config: "p/default"
-    rules_path: "semgrep-rules"
+    # config_path: '.dependency-cruiser.js'
 
-# GitHub Issue settings
+  # knip - finds unused exports and dependencies
+  knip:
+    enabled: weekly
+    # config_path: 'knip.json'
+
+  # Semgrep - security vulnerability scanning
+  semgrep:
+    enabled: weekly
+    config: "p/default" # Use Semgrep's default ruleset
+
+# ═══════════════════════════════════════════════════════════════════
+# ISSUE SETTINGS
+# ═══════════════════════════════════════════════════════════════════
 issues:
   enabled: true
-  label: "vibeCop"
-  max_new_per_run: 25              # Cap new issues per run
-  severity_threshold: "medium"     # low | medium | high | critical
-  confidence_threshold: "high"     # low | medium | high
-  close_resolved: false            # Auto-close when finding disappears
-  assignees: []                    # Default assignees for new issues
+  label: vibeCop
+  max_new_per_run: 25 # Cap new issues per run to avoid flooding
 
-# Output settings
+  # Filtering thresholds (findings below these are skipped)
+  # Note: High severity findings always create issues regardless of confidence
+  severity_threshold: info # critical | high | medium | low | info
+  confidence_threshold: low # high | medium | low
+
+  # Merge strategy - how to group findings into issues
+  # same-rule is recommended to reduce issue noise
+  merge_strategy: same-rule # none | same-file | same-rule | same-tool
+
+  # Auto-close issues when finding disappears (experimental)
+  close_resolved: false
+
+  # Default assignees for new issues (GitHub usernames)
+  # assignees:
+  #   - your-username
+
+# ═══════════════════════════════════════════════════════════════════
+# OUTPUT SETTINGS
+# ═══════════════════════════════════════════════════════════════════
 output:
-  sarif: true
-  llm_json: true
+  sarif: true # Upload to GitHub Code Scanning
+  llm_json: true # Generate AI agent-friendly JSON
   artifact_retention_days: 14
 
-# AI agent configuration
+# ═══════════════════════════════════════════════════════════════════
+# AI AGENT HINTS
+# ═══════════════════════════════════════════════════════════════════
 llm:
-  agent_hint: "codex"
+  agent_hint: codex # AI agent to mention in issues
   pr_branch_prefix: "vibecop/"

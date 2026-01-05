@@ -23,7 +23,11 @@ import {
 import { buildSarifLog, writeSarifFile } from "./build-sarif.js";
 import { buildLlmJson, writeLlmJsonFile } from "./build-llm-json.js";
 import { processFindings } from "./sarif-to-issues.js";
-import { deduplicateFindings } from "./fingerprints.js";
+import {
+  deduplicateFindings,
+  mergeIssues,
+  type MergeStrategy,
+} from "./fingerprints.js";
 import type {
   Cadence,
   Finding,
@@ -426,6 +430,7 @@ export interface AnalyzeOptions {
   skipIssues?: boolean;
   severityThreshold?: string;
   confidenceThreshold?: string;
+  mergeStrategy?: MergeStrategy;
 }
 
 export interface AnalyzeResult {
@@ -435,6 +440,7 @@ export interface AnalyzeResult {
   stats: {
     totalFindings: number;
     uniqueFindings: number;
+    mergedFindings: number;
     byTool: Record<string, number>;
   };
 }
@@ -450,6 +456,7 @@ export async function analyze(
   const cadence = options.cadence || "weekly";
   const severityThreshold = options.severityThreshold || "info";
   const confidenceThreshold = options.confidenceThreshold || "low";
+  const mergeStrategy = options.mergeStrategy || "same-rule";
   const outputDir = options.outputDir || join(rootPath, ".vibecop-output");
 
   // Ensure output directory exists
@@ -574,6 +581,13 @@ export async function analyze(
   console.log(
     `  Total: ${allFindings.length} -> Unique: ${uniqueFindings.length}`,
   );
+
+  // Step 4b: Merge findings based on strategy
+  console.log(`Step 4b: Merging findings (strategy: ${mergeStrategy})...`);
+  const mergedFindings = mergeIssues(uniqueFindings, mergeStrategy);
+  console.log(
+    `  Unique: ${uniqueFindings.length} -> Merged: ${mergedFindings.length}`,
+  );
   console.log("");
 
   // Merge CLI threshold options into config (CLI takes precedence)
@@ -583,6 +597,7 @@ export async function analyze(
       ...config.issues,
       severity_threshold: severityThreshold,
       confidence_threshold: confidenceThreshold,
+      merge_strategy: mergeStrategy,
     },
   };
 
@@ -605,17 +620,22 @@ export async function analyze(
   // Step 5: Generate outputs
   console.log("Step 5: Generating outputs...");
 
-  // Write findings for other scripts
+  // Write all findings (before merge) for debugging
+  const allFindingsPath = join(outputDir, "findings-all.json");
+  writeFileSync(allFindingsPath, JSON.stringify(uniqueFindings, null, 2));
+  console.log(`  All findings: ${allFindingsPath}`);
+
+  // Write merged findings for issue creation
   const findingsPath = join(outputDir, "findings.json");
-  writeFileSync(findingsPath, JSON.stringify(uniqueFindings, null, 2));
-  console.log(`  Findings: ${findingsPath}`);
+  writeFileSync(findingsPath, JSON.stringify(mergedFindings, null, 2));
+  console.log(`  Merged findings: ${findingsPath}`);
 
   // Write context
   const contextPath = join(outputDir, "context.json");
   writeFileSync(contextPath, JSON.stringify(context, null, 2));
   console.log(`  Context: ${contextPath}`);
 
-  // Build SARIF
+  // Build SARIF (use all unique findings for code scanning)
   if (config.output?.sarif !== false) {
     const sarif = buildSarifLog(uniqueFindings, context);
     const sarifPath = join(outputDir, "results.sarif");
@@ -623,9 +643,9 @@ export async function analyze(
     console.log(`  SARIF: ${sarifPath}`);
   }
 
-  // Build LLM JSON
+  // Build LLM JSON (use merged findings for agent consumption)
   if (config.output?.llm_json !== false) {
-    const llmJson = buildLlmJson(uniqueFindings, context);
+    const llmJson = buildLlmJson(mergedFindings, context);
     const llmJsonPath = join(outputDir, "results.llm.json");
     writeLlmJsonFile(llmJson, llmJsonPath);
     console.log(`  LLM JSON: ${llmJsonPath}`);
@@ -633,14 +653,14 @@ export async function analyze(
 
   console.log("");
 
-  // Step 6: Create/update issues
+  // Step 6: Create/update issues (use merged findings)
   if (
     !options.skipIssues &&
     config.issues?.enabled !== false &&
     process.env.GITHUB_TOKEN
   ) {
     console.log("Step 6: Processing GitHub issues...");
-    const issueStats = await processFindings(uniqueFindings, context);
+    const issueStats = await processFindings(mergedFindings, context);
     console.log(`  Created: ${issueStats.created}`);
     console.log(`  Updated: ${issueStats.updated}`);
     console.log(`  Closed: ${issueStats.closed}`);
@@ -658,12 +678,13 @@ export async function analyze(
   }
 
   return {
-    findings: uniqueFindings,
+    findings: mergedFindings,
     profile,
     context,
     stats: {
       totalFindings: allFindings.length,
       uniqueFindings: uniqueFindings.length,
+      mergedFindings: mergedFindings.length,
       byTool,
     },
   };
@@ -698,6 +719,8 @@ async function main() {
       options.severityThreshold = args[++i];
     } else if (arg === "--confidence-threshold" && args[i + 1]) {
       options.confidenceThreshold = args[++i];
+    } else if (arg === "--merge-strategy" && args[i + 1]) {
+      options.mergeStrategy = args[++i] as MergeStrategy;
     }
   }
 

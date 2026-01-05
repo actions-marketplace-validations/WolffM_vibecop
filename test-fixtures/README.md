@@ -1,32 +1,55 @@
 # Test Fixtures
 
-This directory contains intentionally "dirty" code to test all vibeCop analysis tools.
+This directory contains intentionally "dirty" code to demonstrate all vibeCop analysis tools.
+These files trigger at least one issue per tool, which remain open as demo issues in this repo.
 
 ## Files and What They Test
 
-| File | Tool(s) | Issues |
-|------|---------|--------|
-| `eslint-issues.ts` | ESLint | `no-unused-vars`, `no-var`, `prefer-const`, `eqeqeq`, `no-console` |
-| `typescript-errors.ts` | TypeScript | Type mismatches, missing properties, implicit any |
-| `duplicate-code-a.ts` + `duplicate-code-b.ts` | jscpd | ~60 lines of duplicated validation code |
-| `security-issues.ts` | Semgrep, ESLint security | `eval()`, SQL injection, command injection, hardcoded secrets, XSS |
-| `unused-exports.ts` | Knip | Exported but never imported functions, classes, types |
-| `circular-dep-a.ts` + `circular-dep-b.ts` | dependency-cruiser | Circular import dependency |
+| File                                          | Tool(s)                | Issues                                                |
+| --------------------------------------------- | ---------------------- | ----------------------------------------------------- |
+| `typescript-errors.ts`                        | **tsc**                | Type mismatches, missing properties, implicit any     |
+| `eslint-issues.ts`                            | **Trunk/ESLint**       | `no-unused-vars`, `no-var`, `prefer-const`            |
+| `duplicate-code-a.ts` + `duplicate-code-b.ts` | **jscpd**              | ~60 lines of duplicated validation code               |
+| `circular-dep-a.ts` + `circular-dep-b.ts`     | **dependency-cruiser** | Circular import dependency                            |
+| `unused-exports.ts`                           | **knip**               | Exported but never imported functions, classes, types |
+| `security-issues.ts`                          | **Semgrep**            | `eval()`, command injection, hardcoded secrets        |
 
-## Expected Findings
+## Tool Coverage Summary
 
-When running vibeCop on this repo with test fixtures, we expect:
+| Tool                   | Findings    | Description                                   |
+| ---------------------- | ----------- | --------------------------------------------- |
+| **Trunk**              | ✅ Multiple | ESLint, yamllint, osv-scanner vulnerabilities |
+| **tsc**                | ✅ Multiple | TypeScript compiler errors                    |
+| **jscpd**              | ✅ 1+       | Duplicate code blocks                         |
+| **dependency-cruiser** | ✅ 1        | Circular dependency                           |
+| **knip**               | ✅ Multiple | Unused exports and dependencies               |
+| **Semgrep**            | ✅ 1+       | Security vulnerabilities                      |
 
-- **ESLint**: 5+ rule violations
-- **TypeScript**: 5+ type errors
-- **jscpd**: 1 duplicate block (~60 lines)
-- **Semgrep/Security**: 8+ security issues
-- **Knip**: 6 unused exports
-- **dependency-cruiser**: 1 circular dependency
-
-## Usage
+## Running Analysis
 
 ```bash
-# Run analysis including test-fixtures
-npx tsx scripts/run-analyze.ts --cadence weekly
+# Quick verbose analysis (shows all findings)
+npx tsx scripts/verbose-analyze.ts --root="."
+
+# With severity filter
+npx tsx scripts/verbose-analyze.ts --severity-threshold=high
+
+# With different merge strategy
+npx tsx scripts/verbose-analyze.ts --merge-strategy=same-file
 ```
+
+## Demo Issues
+
+When vibeCop runs on this repo, it creates GitHub issues for each finding.
+These issues serve as:
+
+1. **Demos** - Show what vibeCop-created issues look like
+2. **Test targets** - AI agents can practice fixing them
+3. **Documentation** - Each issue explains the problem and fix
+
+Issues are labeled with `vibeCop` and include:
+
+- Severity and confidence ratings
+- All affected file locations (merged)
+- Agent instructions with branch naming
+- Fingerprint for deduplication

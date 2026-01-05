@@ -9,7 +9,11 @@ import { existsSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { join } from "node:path";
 import { detectRepo } from "./repo-detect.js";
-import { deduplicateFindings } from "./fingerprints.js";
+import {
+  deduplicateFindings,
+  mergeIssues,
+  type MergeStrategy,
+} from "./fingerprints.js";
 import {
   parseTscTextOutput,
   parseTscOutput,
@@ -466,6 +470,9 @@ async function main() {
   const confidenceThreshold =
     args.find((a) => a.startsWith("--confidence-threshold="))?.split("=")[1] ||
     "low";
+  const mergeStrategy = (args
+    .find((a) => a.startsWith("--merge-strategy="))
+    ?.split("=")[1] || "same-rule") as MergeStrategy;
   const outputDir = join(rootPath, ".vibecop-verbose-output");
 
   console.log("╔════════════════════════════════════════════════════════════╗");
@@ -477,6 +484,7 @@ async function main() {
   console.log(`Output: ${outputDir}`);
   console.log(`Severity threshold: ${severityThreshold}`);
   console.log(`Confidence threshold: ${confidenceThreshold}`);
+  console.log(`Merge strategy: ${mergeStrategy}`);
 
   // Create output directory
   mkdirSync(outputDir, { recursive: true });
@@ -613,7 +621,19 @@ async function main() {
     `   Findings meeting threshold (severity>=${severityThreshold}, confidence>=${confidenceThreshold}): ${issueableFindings.length}`,
   );
 
-  const issuePreviews = issueableFindings.map((f, i) =>
+  // Merge findings based on strategy
+  const mergedFindings = mergeIssues(issueableFindings, mergeStrategy);
+  console.log(
+    `   After merging (strategy=${mergeStrategy}): ${mergedFindings.length} issues`,
+  );
+
+  // Write merged findings
+  writeFileSync(
+    join(outputDir, "12-merged-findings.json"),
+    JSON.stringify(mergedFindings, null, 2),
+  );
+
+  const issuePreviews = mergedFindings.map((f, i) =>
     generateIssuePreview(f, 1),
   );
 
@@ -676,21 +696,28 @@ async function main() {
     byTool[f.tool] = (byTool[f.tool] || 0) + 1;
   });
 
-  console.log("\nFindings by tool:");
+  console.log("\nFindings by tool (before merging):");
   Object.entries(byTool)
     .sort((a, b) => b[1] - a[1])
     .forEach(([tool, count]) => {
       console.log(`   ${tool.padEnd(20)} ${count}`);
     });
 
+  console.log(`\nIssue Reduction:`);
+  console.log(`   Raw findings:     ${allFindings.length}`);
+  console.log(`   After dedup:      ${uniqueFindings.length}`);
+  console.log(`   After threshold:  ${issueableFindings.length}`);
+  console.log(
+    `   After merging:    ${mergedFindings.length} (${mergeStrategy})`,
+  );
   console.log(`\nGitHub Issues that would be created: ${issuePreviews.length}`);
 
   const bySeverity: Record<string, number> = {};
-  issueableFindings.forEach((f) => {
+  mergedFindings.forEach((f) => {
     bySeverity[f.severity] = (bySeverity[f.severity] || 0) + 1;
   });
 
-  console.log("\nIssues by severity:");
+  console.log("\nMerged issues by severity:");
   ["critical", "high", "medium", "low", "info"].forEach((sev) => {
     if (bySeverity[sev]) {
       console.log(`   ${sev.padEnd(10)} ${bySeverity[sev]}`);
@@ -707,6 +734,9 @@ async function main() {
   console.log("   - 06-semgrep-findings.json    (Security issues)");
   console.log("   - 10-all-findings.json        (All findings before dedup)");
   console.log("   - 11-unique-findings.json     (All unique findings)");
+  console.log(
+    "   - 12-merged-findings.json     (After merge strategy applied)",
+  );
   console.log("   - 20-issue-previews.json      (GitHub issues JSON)");
   console.log("   - issues/*.md                 (Individual issue previews)");
 }

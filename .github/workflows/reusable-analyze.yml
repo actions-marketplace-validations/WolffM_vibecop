@@ -60,6 +60,11 @@ on:
         required: false
         default: "low"
         type: string
+      merge_strategy:
+        description: "How to merge findings into issues: none, same-file, same-rule, or same-tool (default: same-rule)"
+        required: false
+        default: "same-rule"
+        type: string
       artifact_retention_days:
         description: "Number of days to retain analysis artifacts"
         required: false
@@ -176,6 +181,7 @@ jobs:
             --output "${{ github.workspace }}/.vibecop-output" \
             --severity-threshold "${{ inputs.severity_threshold }}" \
             --confidence-threshold "${{ inputs.confidence_threshold }}" \
+            --merge-strategy "${{ inputs.merge_strategy }}" \
             ${{ inputs.skip_issues && '--skip-issues' || '' }}
 
       - name: Upload SARIF to Code Scanning
