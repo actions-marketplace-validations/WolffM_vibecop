@@ -44,6 +44,20 @@ import { DEFAULT_CONFIG } from "./types.js";
 // ============================================================================
 
 /**
+ * Validate severity threshold value.
+ */
+function isValidSeverityThreshold(value: string): value is Severity | 'info' {
+  return ['info', 'low', 'medium', 'high', 'critical'].includes(value);
+}
+
+/**
+ * Validate confidence threshold value.
+ */
+function isValidConfidenceThreshold(value: string): value is Confidence {
+  return ['low', 'medium', 'high'].includes(value);
+}
+
+/**
  * Load vibecop.yml config from repo root.
  */
 function loadVibeCopConfig(
@@ -462,6 +476,18 @@ export async function analyze(
   const mergeStrategy = options.mergeStrategy || "same-rule";
   const outputDir = options.outputDir || join(rootPath, ".vibecop-output");
 
+  // Validate threshold values
+  if (!isValidSeverityThreshold(severityThreshold)) {
+    throw new Error(
+      `Invalid severity threshold: "${severityThreshold}". Must be one of: info, low, medium, high, critical`
+    );
+  }
+  if (!isValidConfidenceThreshold(confidenceThreshold)) {
+    throw new Error(
+      `Invalid confidence threshold: "${confidenceThreshold}". Must be one of: low, medium, high`
+    );
+  }
+
   // Ensure output directory exists
   if (!existsSync(outputDir)) {
     mkdirSync(outputDir, { recursive: true });
@@ -600,8 +626,8 @@ export async function analyze(
       // DEFAULT_CONFIG.issues is always defined (non-null assertion is safe)
       ...DEFAULT_CONFIG.issues!,
       ...config.issues,
-      severity_threshold: severityThreshold as Severity | 'info',
-      confidence_threshold: confidenceThreshold as Confidence,
+      severity_threshold: severityThreshold,
+      confidence_threshold: confidenceThreshold,
     },
   };
 
