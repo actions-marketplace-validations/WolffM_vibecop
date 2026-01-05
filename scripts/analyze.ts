@@ -37,31 +37,36 @@ import type {
 /**
  * Load vibecop.yml config from repo root.
  */
-function loadVibeCopConfig(rootPath: string, configPath: string = 'vibecop.yml'): VibeCopConfig {
-  const fullPath = join(rootPath, configPath);
+function loadVibeCopConfig(rootPath: string, configPath: string = 'vibecop'): VibeCopConfig {
+  // Try JSON first, then YAML
+  const baseName = configPath.replace(/\.(json|yml|yaml)$/, '');
+  const jsonPath = join(rootPath, `${baseName}.json`);
+  const ymlPath = join(rootPath, `${baseName}.yml`);
 
-  if (!existsSync(fullPath)) {
-    console.log(`No config file found at ${fullPath}, using defaults`);
-    return { version: 1 };
-  }
-
-  try {
-    // Simple YAML parsing for our subset
-    const content = readFileSync(fullPath, 'utf-8');
-    // For MVP, use JSON config or basic YAML parsing
-    // In production, use a proper YAML parser
-    if (fullPath.endsWith('.json')) {
+  // Try JSON config first
+  if (existsSync(jsonPath)) {
+    try {
+      const content = readFileSync(jsonPath, 'utf-8');
+      console.log(`Loaded config from ${jsonPath}`);
       return JSON.parse(content);
+    } catch (error) {
+      console.warn(`Failed to parse JSON config: ${error}`);
     }
-
-    // Basic YAML-like parsing (good enough for MVP)
-    // In production, install yaml package
-    console.log(`Config file found at ${fullPath}`);
-    return parseSimpleYaml(content);
-  } catch (error) {
-    console.warn(`Failed to parse config file: ${error}`);
-    return { version: 1 };
   }
+
+  // Try YAML config
+  if (existsSync(ymlPath)) {
+    try {
+      const content = readFileSync(ymlPath, 'utf-8');
+      console.log(`Config file found at ${ymlPath}`);
+      return parseSimpleYaml(content);
+    } catch (error) {
+      console.warn(`Failed to parse YAML config: ${error}`);
+    }
+  }
+
+  console.log(`No config file found at ${jsonPath} or ${ymlPath}, using defaults`);
+  return { version: 1 };
 }
 
 /**
@@ -205,10 +210,11 @@ function runEslint(rootPath: string): Finding[] {
  * Run jscpd (copy-paste detector).
  */
 function runJscpd(rootPath: string, minTokens: number = 70): Finding[] {
-  console.log('Running jscpd...');
+  console.log(`Running jscpd (min-tokens: ${minTokens})...`);
 
   try {
-    const outputPath = join(rootPath, '.vibecop-output', 'jscpd.json');
+    const outputDir = join(rootPath, '.vibecop-output');
+    const outputPath = join(outputDir, 'jscpd-report.json');
 
     // Run jscpd - we don't need the result, just the output file
     spawnSync(
@@ -217,9 +223,10 @@ function runJscpd(rootPath: string, minTokens: number = 70): Finding[] {
         'jscpd',
         '.',
         `--min-tokens=${minTokens}`,
+        '--min-lines=5',
         '--reporters=json',
-        `--output=${join(rootPath, '.vibecop-output')}`,
-        '--ignore="**/node_modules/**,**/dist/**,**/build/**,**/.git/**"',
+        `--output=${outputDir}`,
+        '--ignore="**/node_modules/**,**/dist/**,**/build/**,**/.git/**,**/.vibecop-output/**"',
       ],
       {
         cwd: rootPath,
