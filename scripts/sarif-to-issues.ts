@@ -7,14 +7,14 @@
  * Reference: vibeCop_spec.md section 8
  */
 
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync } from "node:fs";
 import {
   deduplicateFindings,
   FLAP_PROTECTION_RUNS,
   generateFingerprintMarker,
   generateRunMetadataMarker,
   shortFingerprint,
-} from './fingerprints.js';
+} from "./fingerprints.js";
 import {
   addIssueComment,
   buildFingerprintMap,
@@ -26,13 +26,9 @@ import {
   searchIssuesByLabel,
   updateIssue,
   withRateLimit,
-} from './github.js';
-import { meetsThresholds } from './scoring.js';
-import type {
-  ExistingIssue,
-  Finding,
-  RunContext,
-} from './types.js';
+} from "./github.js";
+import { meetsThresholds } from "./scoring.js";
+import type { ExistingIssue, Finding, RunContext } from "./types.js";
 
 // ============================================================================
 // Issue Body Template
@@ -47,8 +43,8 @@ function generateIssueBody(finding: Finding, context: RunContext): string {
   const location = finding.locations[0];
 
   const locationStr = location
-    ? `\`${location.path}\` (line ${location.startLine}${location.endLine && location.endLine !== location.startLine ? `-${location.endLine}` : ''})`
-    : 'Unknown location';
+    ? `\`${location.path}\` (line ${location.startLine}${location.endLine && location.endLine !== location.startLine ? `-${location.endLine}` : ""})`
+    : "Unknown location";
 
   const evidenceSection = finding.evidence?.snippet
     ? `
@@ -58,7 +54,7 @@ function generateIssueBody(finding: Finding, context: RunContext): string {
 ${finding.evidence.snippet}
 \`\`\`
 `
-    : '';
+    : "";
 
   const suggestedFix = finding.suggestedFix;
   const fixSection = suggestedFix
@@ -68,15 +64,15 @@ ${finding.evidence.snippet}
 **Goal:** ${suggestedFix.goal}
 
 **Steps:**
-${suggestedFix.steps.map((s) => `1. ${s}`).join('\n')}
+${suggestedFix.steps.map((s) => `1. ${s}`).join("\n")}
 
 **Acceptance Criteria:**
-${suggestedFix.acceptance.map((a) => `- [ ] ${a}`).join('\n')}
+${suggestedFix.acceptance.map((a) => `- [ ] ${a}`).join("\n")}
 `
-    : '';
+    : "";
 
-  const agentHint = context.config.llm?.agent_hint || 'codex';
-  const branchPrefix = context.config.llm?.pr_branch_prefix || 'vibecop/';
+  const agentHint = context.config.llm?.agent_hint || "codex";
+  const branchPrefix = context.config.llm?.pr_branch_prefix || "vibecop/";
 
   const body = `## Summary
 
@@ -92,7 +88,7 @@ ${finding.message}
 ## Location
 
 ${locationStr}
-${finding.locations.length > 1 ? `\n*Plus ${finding.locations.length - 1} additional location(s)*` : ''}
+${finding.locations.length > 1 ? `\n*Plus ${finding.locations.length - 1} additional location(s)*` : ""}
 ${evidenceSection}
 ${fixSection}
 
@@ -100,7 +96,7 @@ ${fixSection}
 
 This issue is designed to be resolved by an AI coding agent (e.g., ${agentHint}).
 
-1. Create a branch: \`${branchPrefix}${shortFingerprint(finding.fingerprint)}/${finding.ruleId.replace(/[^a-z0-9]/gi, '-').toLowerCase()}\`
+1. Create a branch: \`${branchPrefix}${shortFingerprint(finding.fingerprint)}/${finding.ruleId.replace(/[^a-z0-9]/gi, "-").toLowerCase()}\`
 2. Implement the suggested fix
 3. Run \`trunk check\` and \`pnpm test\` to verify
 4. Open a PR referencing this issue: "Fixes #ISSUE_NUMBER"
@@ -126,12 +122,12 @@ ${generateRunMetadataMarker(runNumber, timestamp)}
  */
 function generateIssueTitle(finding: Finding): string {
   const location = finding.locations[0];
-  const locationHint = location ? ` in ${location.path.split('/').pop()}` : '';
+  const locationHint = location ? ` in ${location.path.split("/").pop()}` : "";
   const maxLen = 100;
 
   let title = `[vibeCop] ${finding.title}${locationHint}`;
   if (title.length > maxLen) {
-    title = title.substring(0, maxLen - 3) + '...';
+    title = title.substring(0, maxLen - 3) + "...";
   }
 
   return title;
@@ -150,8 +146,8 @@ function getLabelsForFinding(finding: Finding, baseLabel: string): string[] {
     `tool:${finding.tool}`,
   ];
 
-  if (finding.autofix === 'safe') {
-    labels.push('autofix:safe');
+  if (finding.autofix === "safe") {
+    labels.push("autofix:safe");
   }
 
   return labels;
@@ -175,7 +171,7 @@ export interface IssueStats {
  */
 export async function processFindings(
   findings: Finding[],
-  context: RunContext
+  context: RunContext,
 ): Promise<IssueStats> {
   const stats: IssueStats = {
     created: 0,
@@ -188,32 +184,39 @@ export async function processFindings(
 
   const repoInfo = parseGitHubRepository();
   if (!repoInfo) {
-    console.error('GITHUB_REPOSITORY environment variable not set');
+    console.error("GITHUB_REPOSITORY environment variable not set");
     return stats;
   }
 
   const { owner, repo } = repoInfo;
-  const issuesConfig = context.config.issues || {
+  const issuesConfig = {
     enabled: true,
-    label: 'vibeCop',
+    label: "vibeCop",
     max_new_per_run: 25,
-    severity_threshold: 'medium',
-    confidence_threshold: 'high',
+    severity_threshold: "info",
+    confidence_threshold: "low",
     close_resolved: false,
+    ...context.config.issues,
   };
 
+  console.log(
+    `Issue thresholds: severity>=${issuesConfig.severity_threshold}, confidence>=${issuesConfig.confidence_threshold}`,
+  );
+
   if (!issuesConfig.enabled) {
-    console.log('Issue creation is disabled');
+    console.log("Issue creation is disabled");
     return stats;
   }
 
   // Ensure labels exist
-  console.log('Ensuring labels exist...');
+  console.log("Ensuring labels exist...");
   await ensureLabels(owner, repo, DEFAULT_LABELS);
 
   // Fetch existing issues
-  console.log('Fetching existing vibeCop issues...');
-  const existingIssues = await searchIssuesByLabel(owner, repo, [issuesConfig.label]);
+  console.log("Fetching existing vibeCop issues...");
+  const existingIssues = await searchIssuesByLabel(owner, repo, [
+    issuesConfig.label,
+  ]);
   const fingerprintMap = buildFingerprintMap(existingIssues);
   console.log(`Found ${existingIssues.length} existing issues`);
 
@@ -227,11 +230,12 @@ export async function processFindings(
       finding.severity,
       finding.confidence,
       issuesConfig.severity_threshold,
-      issuesConfig.confidence_threshold
-    )
+      issuesConfig.confidence_threshold,
+    ),
   );
 
-  stats.skippedBelowThreshold = uniqueFindings.length - actionableFindings.length;
+  stats.skippedBelowThreshold =
+    uniqueFindings.length - actionableFindings.length;
   console.log(`${actionableFindings.length} findings meet thresholds`);
 
   // Track which fingerprints we've seen in this run
@@ -245,8 +249,10 @@ export async function processFindings(
 
     if (existingIssue) {
       // Update existing issue
-      if (existingIssue.state === 'open') {
-        console.log(`Updating issue #${existingIssue.number} for ${finding.ruleId}`);
+      if (existingIssue.state === "open") {
+        console.log(
+          `Updating issue #${existingIssue.number} for ${finding.ruleId}`,
+        );
         const body = generateIssueBody(finding, context);
 
         await withRateLimit(() =>
@@ -254,7 +260,7 @@ export async function processFindings(
             number: existingIssue.number,
             body,
             labels: getLabelsForFinding(finding, issuesConfig.label),
-          })
+          }),
         );
 
         stats.updated++;
@@ -278,7 +284,7 @@ export async function processFindings(
           body,
           labels,
           assignees: issuesConfig.assignees,
-        })
+        }),
       );
 
       console.log(`Created issue #${issueNumber}`);
@@ -294,7 +300,7 @@ export async function processFindings(
       existingIssues,
       seenFingerprints,
       context.runNumber,
-      stats
+      stats,
     );
   }
 
@@ -310,10 +316,10 @@ async function closeResolvedIssues(
   existingIssues: ExistingIssue[],
   seenFingerprints: Set<string>,
   currentRun: number,
-  stats: IssueStats
+  stats: IssueStats,
 ): Promise<void> {
   for (const issue of existingIssues) {
-    if (issue.state !== 'open') continue;
+    if (issue.state !== "open") continue;
     if (!issue.metadata?.fingerprint) continue;
 
     // Check if this fingerprint was seen in the current run
@@ -326,15 +332,17 @@ async function closeResolvedIssues(
     const consecutiveMisses = currentRun - lastSeenRun;
 
     if (consecutiveMisses >= FLAP_PROTECTION_RUNS) {
-      console.log(`Closing issue #${issue.number} (not seen for ${consecutiveMisses} runs)`);
+      console.log(
+        `Closing issue #${issue.number} (not seen for ${consecutiveMisses} runs)`,
+      );
 
       await withRateLimit(() =>
         closeIssue(
           owner,
           repo,
           issue.number,
-          `🎉 This issue appears to be resolved! The finding has not been detected for ${consecutiveMisses} consecutive runs.\n\nClosed automatically by vibeCop.`
-        )
+          `🎉 This issue appears to be resolved! The finding has not been detected for ${consecutiveMisses} consecutive runs.\n\nClosed automatically by vibeCop.`,
+        ),
       );
 
       stats.closed++;
@@ -345,8 +353,8 @@ async function closeResolvedIssues(
           owner,
           repo,
           issue.number,
-          `ℹ️ This finding was not detected in run #${currentRun}. If it remains undetected for ${FLAP_PROTECTION_RUNS - consecutiveMisses} more run(s), this issue will be automatically closed.`
-        )
+          `ℹ️ This finding was not detected in run #${currentRun}. If it remains undetected for ${FLAP_PROTECTION_RUNS - consecutiveMisses} more run(s), this issue will be automatically closed.`,
+        ),
       );
     }
   }
@@ -358,8 +366,8 @@ async function closeResolvedIssues(
 
 async function main() {
   const args = process.argv.slice(2);
-  const findingsPath = args[0] || 'findings.json';
-  const contextPath = args[1] || 'context.json';
+  const findingsPath = args[0] || "findings.json";
+  const contextPath = args[1] || "context.json";
 
   // Load findings
   if (!existsSync(findingsPath)) {
@@ -367,7 +375,7 @@ async function main() {
     process.exit(1);
   }
 
-  const findings: Finding[] = JSON.parse(readFileSync(findingsPath, 'utf-8'));
+  const findings: Finding[] = JSON.parse(readFileSync(findingsPath, "utf-8"));
   console.log(`Loaded ${findings.length} findings`);
 
   // Load context
@@ -376,13 +384,13 @@ async function main() {
     process.exit(1);
   }
 
-  const context: RunContext = JSON.parse(readFileSync(contextPath, 'utf-8'));
+  const context: RunContext = JSON.parse(readFileSync(contextPath, "utf-8"));
 
   // Process findings
   const stats = await processFindings(findings, context);
 
   // Output summary
-  console.log('\n=== Issue Processing Summary ===');
+  console.log("\n=== Issue Processing Summary ===");
   console.log(`Created: ${stats.created}`);
   console.log(`Updated: ${stats.updated}`);
   console.log(`Closed: ${stats.closed}`);
@@ -396,17 +404,17 @@ async function main() {
       `issues_created=${stats.created}`,
       `issues_updated=${stats.updated}`,
       `issues_closed=${stats.closed}`,
-    ].join('\n');
+    ].join("\n");
 
-    const { appendFileSync } = await import('node:fs');
-    appendFileSync(process.env.GITHUB_OUTPUT, output + '\n');
+    const { appendFileSync } = await import("node:fs");
+    appendFileSync(process.env.GITHUB_OUTPUT, output + "\n");
   }
 }
 
 // Run if called directly
 if (import.meta.url === `file://${process.argv[1]}`) {
   main().catch((err) => {
-    console.error('Error processing findings:', err);
+    console.error("Error processing findings:", err);
     process.exit(1);
   });
 }

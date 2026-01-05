@@ -13,7 +13,7 @@ import type {
   Layer,
   Severity,
   ToolName,
-} from './types.js';
+} from "./types.js";
 
 // ============================================================================
 // Severity Mapping
@@ -22,8 +22,10 @@ import type {
 /**
  * Severity hierarchy (for comparisons).
  * Higher number = more severe.
+ * 'info' is added as level 0 for threshold purposes (accepts all severities).
  */
-export const SEVERITY_ORDER: Record<Severity, number> = {
+export const SEVERITY_ORDER: Record<Severity | "info", number> = {
+  info: 0,
   low: 1,
   medium: 2,
   high: 3,
@@ -42,8 +44,12 @@ export function compareSeverity(a: Severity, b: Severity): number {
 
 /**
  * Check if severity meets threshold.
+ * Accepts 'info' as threshold to allow all severities.
  */
-export function meetsSeverityThreshold(severity: Severity, threshold: Severity): boolean {
+export function meetsSeverityThreshold(
+  severity: Severity,
+  threshold: Severity | "info",
+): boolean {
   return SEVERITY_ORDER[severity] >= SEVERITY_ORDER[threshold];
 }
 
@@ -70,7 +76,10 @@ export function compareConfidence(a: Confidence, b: Confidence): number {
 /**
  * Check if confidence meets threshold.
  */
-export function meetsConfidenceThreshold(confidence: Confidence, threshold: Confidence): boolean {
+export function meetsConfidenceThreshold(
+  confidence: Confidence,
+  threshold: Confidence,
+): boolean {
   return CONFIDENCE_ORDER[confidence] >= CONFIDENCE_ORDER[threshold];
 }
 
@@ -84,11 +93,11 @@ export function meetsConfidenceThreshold(confidence: Confidence, threshold: Conf
 export function mapEslintSeverity(eslintSeverity: 0 | 1 | 2): Severity {
   switch (eslintSeverity) {
     case 2:
-      return 'high';
+      return "high";
     case 1:
-      return 'medium';
+      return "medium";
     default:
-      return 'low';
+      return "low";
   }
 }
 
@@ -99,63 +108,63 @@ export function mapEslintSeverity(eslintSeverity: 0 | 1 | 2): Severity {
 export function mapEslintConfidence(ruleId: string): Confidence {
   // High confidence rules (type-related, definite bugs)
   const highConfidenceRules = [
-    'no-undef',
-    'no-unused-vars',
-    '@typescript-eslint/no-unused-vars',
-    'no-dupe-keys',
-    'no-duplicate-case',
-    'no-unreachable',
-    'no-func-assign',
-    'no-import-assign',
-    'no-const-assign',
-    'constructor-super',
-    'getter-return',
-    'no-class-assign',
-    'no-compare-neg-zero',
-    'no-cond-assign',
-    'no-constant-condition',
-    'no-debugger',
-    'no-dupe-args',
-    'no-dupe-class-members',
-    'no-empty-pattern',
-    'no-ex-assign',
-    'no-fallthrough',
-    'no-invalid-regexp',
-    'no-obj-calls',
-    'no-self-assign',
-    'no-setter-return',
-    'no-sparse-arrays',
-    'no-this-before-super',
-    'no-unsafe-negation',
-    'use-isnan',
-    'valid-typeof',
+    "no-undef",
+    "no-unused-vars",
+    "@typescript-eslint/no-unused-vars",
+    "no-dupe-keys",
+    "no-duplicate-case",
+    "no-unreachable",
+    "no-func-assign",
+    "no-import-assign",
+    "no-const-assign",
+    "constructor-super",
+    "getter-return",
+    "no-class-assign",
+    "no-compare-neg-zero",
+    "no-cond-assign",
+    "no-constant-condition",
+    "no-debugger",
+    "no-dupe-args",
+    "no-dupe-class-members",
+    "no-empty-pattern",
+    "no-ex-assign",
+    "no-fallthrough",
+    "no-invalid-regexp",
+    "no-obj-calls",
+    "no-self-assign",
+    "no-setter-return",
+    "no-sparse-arrays",
+    "no-this-before-super",
+    "no-unsafe-negation",
+    "use-isnan",
+    "valid-typeof",
   ];
 
   if (highConfidenceRules.includes(ruleId)) {
-    return 'high';
+    return "high";
   }
 
   // Medium confidence rules (likely issues but context-dependent)
   const mediumConfidenceRules = [
-    'eqeqeq',
-    'no-eval',
-    'no-implied-eval',
-    'no-new-func',
-    'no-shadow',
-    'no-use-before-define',
-    'prefer-const',
-    'no-var',
-    'complexity',
-    'max-depth',
-    'max-lines-per-function',
+    "eqeqeq",
+    "no-eval",
+    "no-implied-eval",
+    "no-new-func",
+    "no-shadow",
+    "no-use-before-define",
+    "prefer-const",
+    "no-var",
+    "complexity",
+    "max-depth",
+    "max-lines-per-function",
   ];
 
   if (mediumConfidenceRules.includes(ruleId)) {
-    return 'medium';
+    return "medium";
   }
 
   // Default: stylistic/preference rules
-  return 'low';
+  return "low";
 }
 
 /**
@@ -164,7 +173,7 @@ export function mapEslintConfidence(ruleId: string): Confidence {
  */
 export function mapTscSeverity(_code: number): Severity {
   // All TypeScript errors are high severity
-  return 'high';
+  return "high";
 }
 
 /**
@@ -172,7 +181,7 @@ export function mapTscSeverity(_code: number): Severity {
  * TypeScript errors are definitionally high confidence.
  */
 export function mapTscConfidence(_code: number): Confidence {
-  return 'high';
+  return "high";
 }
 
 /**
@@ -182,14 +191,14 @@ export function mapTscConfidence(_code: number): Confidence {
 export function mapJscpdSeverity(lines: number, tokens: number): Severity {
   // Large duplications are high severity
   if (lines >= 50 || tokens >= 500) {
-    return 'high';
+    return "high";
   }
   // Medium-sized duplications
   if (lines >= 20 || tokens >= 200) {
-    return 'medium';
+    return "medium";
   }
   // Small duplications
-  return 'low';
+  return "low";
 }
 
 /**
@@ -198,7 +207,7 @@ export function mapJscpdSeverity(lines: number, tokens: number): Severity {
  */
 export function mapJscpdConfidence(_tokens: number): Confidence {
   // jscpd finds exact duplicates, always high confidence
-  return 'high';
+  return "high";
 }
 
 /**
@@ -206,18 +215,18 @@ export function mapJscpdConfidence(_tokens: number): Confidence {
  */
 export function mapDepcruiseSeverity(violationType: string): Severity {
   // Forbidden dependencies are high
-  if (violationType === 'not-allowed' || violationType === 'forbidden') {
-    return 'high';
+  if (violationType === "not-allowed" || violationType === "forbidden") {
+    return "high";
   }
   // Circular dependencies are high
-  if (violationType === 'cycle') {
-    return 'high';
+  if (violationType === "cycle") {
+    return "high";
   }
   // Orphans, unreachable
-  if (violationType === 'orphan' || violationType === 'reachable') {
-    return 'medium';
+  if (violationType === "orphan" || violationType === "reachable") {
+    return "medium";
   }
-  return 'medium';
+  return "medium";
 }
 
 /**
@@ -225,10 +234,14 @@ export function mapDepcruiseSeverity(violationType: string): Severity {
  */
 export function mapDepcruiseConfidence(violationType: string): Confidence {
   // Cycles and forbidden deps are definitive
-  if (violationType === 'cycle' || violationType === 'not-allowed' || violationType === 'forbidden') {
-    return 'high';
+  if (
+    violationType === "cycle" ||
+    violationType === "not-allowed" ||
+    violationType === "forbidden"
+  ) {
+    return "high";
   }
-  return 'medium';
+  return "medium";
 }
 
 /**
@@ -236,18 +249,18 @@ export function mapDepcruiseConfidence(violationType: string): Confidence {
  */
 export function mapKnipSeverity(issueType: string): Severity {
   // Unused dependencies are high (bloat, security)
-  if (issueType === 'dependencies' || issueType === 'devDependencies') {
-    return 'high';
+  if (issueType === "dependencies" || issueType === "devDependencies") {
+    return "high";
   }
   // Unused exports are medium
-  if (issueType === 'exports' || issueType === 'types') {
-    return 'medium';
+  if (issueType === "exports" || issueType === "types") {
+    return "medium";
   }
   // Unused files are medium-high
-  if (issueType === 'files') {
-    return 'medium';
+  if (issueType === "files") {
+    return "medium";
   }
-  return 'medium';
+  return "medium";
 }
 
 /**
@@ -255,18 +268,18 @@ export function mapKnipSeverity(issueType: string): Severity {
  */
 export function mapKnipConfidence(issueType: string): Confidence {
   // Dependencies are high confidence
-  if (issueType === 'dependencies' || issueType === 'devDependencies') {
-    return 'high';
+  if (issueType === "dependencies" || issueType === "devDependencies") {
+    return "high";
   }
   // Exports can have false positives (dynamic usage)
-  if (issueType === 'exports') {
-    return 'medium';
+  if (issueType === "exports") {
+    return "medium";
   }
   // Unused files are usually accurate
-  if (issueType === 'files') {
-    return 'high';
+  if (issueType === "files") {
+    return "high";
   }
-  return 'medium';
+  return "medium";
 }
 
 /**
@@ -275,16 +288,16 @@ export function mapKnipConfidence(issueType: string): Confidence {
  */
 export function mapSemgrepSeverity(semgrepSeverity: string): Severity {
   const normalized = semgrepSeverity.toLowerCase();
-  if (normalized === 'error' || normalized === 'high') {
-    return 'high';
+  if (normalized === "error" || normalized === "high") {
+    return "high";
   }
-  if (normalized === 'warning' || normalized === 'medium') {
-    return 'medium';
+  if (normalized === "warning" || normalized === "medium") {
+    return "medium";
   }
-  if (normalized === 'info' || normalized === 'low') {
-    return 'low';
+  if (normalized === "info" || normalized === "low") {
+    return "low";
   }
-  return 'medium'; // conservative default
+  return "medium"; // conservative default
 }
 
 /**
@@ -292,16 +305,16 @@ export function mapSemgrepSeverity(semgrepSeverity: string): Severity {
  */
 export function mapSemgrepConfidence(semgrepConfidence?: string): Confidence {
   if (!semgrepConfidence) {
-    return 'medium';
+    return "medium";
   }
   const normalized = semgrepConfidence.toLowerCase();
-  if (normalized === 'high') {
-    return 'high';
+  if (normalized === "high") {
+    return "high";
   }
-  if (normalized === 'medium') {
-    return 'medium';
+  if (normalized === "medium") {
+    return "medium";
   }
-  return 'low';
+  return "low";
 }
 
 // ============================================================================
@@ -314,42 +327,46 @@ export function mapSemgrepConfidence(semgrepConfidence?: string): Confidence {
 export function classifyLayer(tool: ToolName, ruleId: string): Layer {
   // Security layer
   const securityPatterns = [
-    'security',
-    'xss',
-    'injection',
-    'csrf',
-    'sql',
-    'xxe',
-    'ssrf',
-    'auth',
-    'crypto',
-    'secret',
-    'password',
-    'eval',
-    'dangerous',
+    "security",
+    "xss",
+    "injection",
+    "csrf",
+    "sql",
+    "xxe",
+    "ssrf",
+    "auth",
+    "crypto",
+    "secret",
+    "password",
+    "eval",
+    "dangerous",
   ];
 
   const ruleIdLower = ruleId.toLowerCase();
   if (securityPatterns.some((p) => ruleIdLower.includes(p))) {
-    return 'security';
+    return "security";
   }
 
   // Architecture layer
-  if (tool === 'dependency-cruiser' || tool === 'knip') {
-    return 'architecture';
+  if (tool === "dependency-cruiser" || tool === "knip") {
+    return "architecture";
   }
-  if (ruleIdLower.includes('import') || ruleIdLower.includes('dependency') || ruleIdLower.includes('cycle')) {
-    return 'architecture';
+  if (
+    ruleIdLower.includes("import") ||
+    ruleIdLower.includes("dependency") ||
+    ruleIdLower.includes("cycle")
+  ) {
+    return "architecture";
   }
 
   // System layer (build, config issues)
-  if (tool === 'tsc') {
+  if (tool === "tsc") {
     // Type errors are code-level
-    return 'code';
+    return "code";
   }
 
   // Default: code layer
-  return 'code';
+  return "code";
 }
 
 // ============================================================================
@@ -367,52 +384,52 @@ export function estimateEffort(
   tool: ToolName,
   ruleId: string,
   locationCount: number,
-  hasAutofix: boolean
+  hasAutofix: boolean,
 ): Effort {
   // Autofix available = Small effort
   if (hasAutofix) {
-    return 'S';
+    return "S";
   }
 
   // Multiple locations = at least Medium
   if (locationCount > 3) {
-    return 'L';
+    return "L";
   }
   if (locationCount > 1) {
-    return 'M';
+    return "M";
   }
 
   // Tool-specific heuristics
-  if (tool === 'jscpd') {
+  if (tool === "jscpd") {
     // Duplicate code refactoring is typically Medium to Large
-    return 'M';
+    return "M";
   }
 
-  if (tool === 'dependency-cruiser') {
+  if (tool === "dependency-cruiser") {
     // Fixing dependency cycles is typically Large
-    if (ruleId.toLowerCase().includes('cycle')) {
-      return 'L';
+    if (ruleId.toLowerCase().includes("cycle")) {
+      return "L";
     }
-    return 'M';
+    return "M";
   }
 
-  if (tool === 'knip') {
+  if (tool === "knip") {
     // Removing unused code is typically Small
-    return 'S';
+    return "S";
   }
 
-  if (tool === 'tsc') {
+  if (tool === "tsc") {
     // Type errors can vary; assume Medium without more info
-    return 'M';
+    return "M";
   }
 
   // ESLint/Prettier - typically Small if single location
-  if (tool === 'eslint' || tool === 'prettier') {
-    return 'S';
+  if (tool === "eslint" || tool === "prettier") {
+    return "S";
   }
 
   // Default: Medium
-  return 'M';
+  return "M";
 }
 
 // ============================================================================
@@ -425,43 +442,43 @@ export function estimateEffort(
 export function determineAutofixLevel(
   tool: ToolName,
   ruleId: string,
-  hasFixInfo: boolean
+  hasFixInfo: boolean,
 ): AutofixLevel {
   // Prettier always has safe autofix
-  if (tool === 'prettier') {
-    return 'safe';
+  if (tool === "prettier") {
+    return "safe";
   }
 
   // ESLint with fix info
-  if (tool === 'eslint' && hasFixInfo) {
+  if (tool === "eslint" && hasFixInfo) {
     // Some ESLint fixes are safe, others need review
     const safeRules = [
-      'semi',
-      'quotes',
-      'indent',
-      'comma-dangle',
-      'no-extra-semi',
-      'no-trailing-spaces',
-      'eol-last',
-      'space-before-function-paren',
-      'object-curly-spacing',
-      'array-bracket-spacing',
-      'prefer-const',
-      'no-var',
+      "semi",
+      "quotes",
+      "indent",
+      "comma-dangle",
+      "no-extra-semi",
+      "no-trailing-spaces",
+      "eol-last",
+      "space-before-function-paren",
+      "object-curly-spacing",
+      "array-bracket-spacing",
+      "prefer-const",
+      "no-var",
     ];
 
     if (safeRules.some((r) => ruleId.includes(r))) {
-      return 'safe';
+      return "safe";
     }
-    return 'requires_review';
+    return "requires_review";
   }
 
   // Trunk may provide autofix
-  if (tool === 'trunk' && hasFixInfo) {
-    return 'requires_review';
+  if (tool === "trunk" && hasFixInfo) {
+    return "requires_review";
   }
 
-  return 'none';
+  return "none";
 }
 
 // ============================================================================
@@ -470,12 +487,13 @@ export function determineAutofixLevel(
 
 /**
  * Check if a finding meets severity and confidence thresholds.
+ * Use 'info' for severity threshold to allow all severities.
  */
 export function meetsThresholds(
   severity: Severity,
   confidence: Confidence,
-  severityThreshold: Severity,
-  confidenceThreshold: Confidence
+  severityThreshold: Severity | "info",
+  confidenceThreshold: Confidence,
 ): boolean {
   return (
     meetsSeverityThreshold(severity, severityThreshold) &&
@@ -492,20 +510,29 @@ export function meetsThresholds(
  * Order: severity desc, confidence desc, path asc, line asc
  */
 export function compareFindingsForSort(
-  a: { severity: Severity; confidence: Confidence; locations: { path: string; startLine: number }[] },
-  b: { severity: Severity; confidence: Confidence; locations: { path: string; startLine: number }[] }
+  a: {
+    severity: Severity;
+    confidence: Confidence;
+    locations: { path: string; startLine: number }[];
+  },
+  b: {
+    severity: Severity;
+    confidence: Confidence;
+    locations: { path: string; startLine: number }[];
+  },
 ): number {
   // Severity descending
   const severityDiff = SEVERITY_ORDER[b.severity] - SEVERITY_ORDER[a.severity];
   if (severityDiff !== 0) return severityDiff;
 
   // Confidence descending
-  const confidenceDiff = CONFIDENCE_ORDER[b.confidence] - CONFIDENCE_ORDER[a.confidence];
+  const confidenceDiff =
+    CONFIDENCE_ORDER[b.confidence] - CONFIDENCE_ORDER[a.confidence];
   if (confidenceDiff !== 0) return confidenceDiff;
 
   // Path ascending
-  const pathA = a.locations[0]?.path ?? '';
-  const pathB = b.locations[0]?.path ?? '';
+  const pathA = a.locations[0]?.path ?? "";
+  const pathB = b.locations[0]?.path ?? "";
   const pathDiff = pathA.localeCompare(pathB);
   if (pathDiff !== 0) return pathDiff;
 
