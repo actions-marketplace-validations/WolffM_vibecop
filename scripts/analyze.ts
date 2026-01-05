@@ -30,9 +30,11 @@ import {
 } from "./fingerprints.js";
 import type {
   Cadence,
+  Confidence,
   Finding,
   RepoProfile,
   RunContext,
+  Severity,
   VibeCopConfig,
 } from "./types.js";
 
@@ -428,8 +430,8 @@ export interface AnalyzeOptions {
   cadence?: Cadence;
   outputDir?: string;
   skipIssues?: boolean;
-  severityThreshold?: string;
-  confidenceThreshold?: string;
+  severityThreshold?: Severity | "info";
+  confidenceThreshold?: Confidence;
   mergeStrategy?: MergeStrategy;
 }
 
@@ -716,9 +718,9 @@ async function main() {
     } else if (arg === "--skip-issues") {
       options.skipIssues = true;
     } else if (arg === "--severity-threshold" && args[i + 1]) {
-      options.severityThreshold = args[++i];
+      options.severityThreshold = args[++i] as Severity | "info";
     } else if (arg === "--confidence-threshold" && args[i + 1]) {
-      options.confidenceThreshold = args[++i];
+      options.confidenceThreshold = args[++i] as Confidence;
     } else if (arg === "--merge-strategy" && args[i + 1]) {
       options.mergeStrategy = args[++i] as MergeStrategy;
     }
