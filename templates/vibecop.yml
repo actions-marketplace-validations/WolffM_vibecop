@@ -1,0 +1,64 @@
+# vibeCop Configuration
+#
+# This file customizes vibeCop behavior for your repository.
+# All fields are optional - defaults will be used if omitted.
+#
+# Place this file at your repository root as `vibecop.yml`
+
+version: 1
+
+# Schedule settings
+schedule:
+  cadence: weekly        # daily | weekly | monthly
+  deep_scan: false       # Enable all tools regardless of cadence
+
+# Trunk configuration
+trunk:
+  enabled: true
+  arguments: "check"
+  extra_args: []
+
+# Tool-specific settings
+# enabled: auto | true | false | daily | weekly | monthly
+tools:
+  tsc:
+    enabled: auto        # Run if tsconfig.json exists
+  eslint:
+    enabled: auto        # Run if eslint config exists
+  prettier:
+    enabled: auto        # Run if prettier config exists
+  jscpd:
+    enabled: weekly      # Run on weekly+ cadence
+    min_tokens: 70       # Minimum tokens for duplicate detection
+    threshold: 1         # Duplication percentage threshold
+  dependency_cruiser:
+    enabled: weekly
+    config_path: ".dependency-cruiser.js"
+  knip:
+    enabled: monthly     # Run on monthly cadence only
+    config_path: "knip.json"
+  semgrep:
+    enabled: monthly
+    config: "p/default"
+    rules_path: "semgrep-rules"
+
+# GitHub Issue settings
+issues:
+  enabled: true
+  label: "vibeCop"
+  max_new_per_run: 25              # Cap new issues per run
+  severity_threshold: "medium"     # low | medium | high | critical
+  confidence_threshold: "high"     # low | medium | high
+  close_resolved: false            # Auto-close when finding disappears
+  assignees: []                    # Default assignees for new issues
+
+# Output settings
+output:
+  sarif: true
+  llm_json: true
+  artifact_retention_days: 14
+
+# AI agent configuration
+llm:
+  agent_hint: "codex"
+  pr_branch_prefix: "vibecop/"

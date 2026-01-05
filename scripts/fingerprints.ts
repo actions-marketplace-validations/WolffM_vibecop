@@ -1,0 +1,219 @@
+/**
+ * Fingerprinting Module
+ *
+ * Generates stable fingerprints for findings to enable deduplication
+ * across runs.
+ *
+ * Reference: vibeCop_spec.md section 8.3
+ */
+
+import { createHash } from 'node:crypto';
+import type { Finding, Location } from './types.js';
+
+/**
+ * Line bucket size for fingerprinting.
+ * Lines are bucketed to tolerate minor code shifts.
+ * bucket = Math.floor(startLine / BUCKET_SIZE) * BUCKET_SIZE
+ */
+export const LINE_BUCKET_SIZE = 20;
+
+/**
+ * Number of consecutive runs a finding must be missing
+ * before auto-closing its issue (flap protection).
+ */
+export const FLAP_PROTECTION_RUNS = 3;
+
+/**
+ * Bucket a line number to reduce sensitivity to small changes.
+ * Example: lines 1-19 -> 0, lines 20-39 -> 20, etc.
+ */
+export function bucketLine(line: number): number {
+  return Math.floor(line / LINE_BUCKET_SIZE) * LINE_BUCKET_SIZE;
+}
+
+/**
+ * Normalize a file path for fingerprinting:
+ * - Convert backslashes to forward slashes
+ * - Remove leading ./
+ * - Lowercase (for case-insensitive comparison)
+ */
+export function normalizePath(path: string): string {
+  return path
+    .replace(/\\/g, '/')
+    .replace(/^\.\//, '')
+    .toLowerCase();
+}
+
+/**
+ * Normalize a message for fingerprinting:
+ * - Collapse whitespace
+ * - Remove numbers that commonly change (line numbers in messages, counts)
+ * - Trim
+ * - Lowercase
+ */
+export function normalizeMessage(message: string): string {
+  return message
+    .replace(/\s+/g, ' ')
+    .replace(/\d+/g, '#')
+    .trim()
+    .toLowerCase();
+}
+
+/**
+ * Normalize a rule ID for fingerprinting:
+ * - Trim
+ * - Lowercase
+ */
+export function normalizeRuleId(ruleId: string): string {
+  return ruleId.trim().toLowerCase();
+}
+
+/**
+ * Build the canonical key for fingerprinting a finding.
+ * Format: tool|ruleId|path|bucketedLine|normalizedMessage
+ *
+ * If a finding has multiple locations, use the first one (primary location).
+ */
+export function buildFingerprintKey(
+  tool: string,
+  ruleId: string,
+  path: string,
+  startLine: number,
+  message: string
+): string {
+  const normalizedTool = tool.toLowerCase();
+  const normalizedRuleId = normalizeRuleId(ruleId);
+  const normalizedPath = normalizePath(path);
+  const bucketedLine = bucketLine(startLine);
+  const normalizedMsg = normalizeMessage(message);
+
+  return `${normalizedTool}|${normalizedRuleId}|${normalizedPath}|${bucketedLine}|${normalizedMsg}`;
+}
+
+/**
+ * Compute SHA256 hash of the fingerprint key.
+ * Returns hex-encoded hash prefixed with "sha256:".
+ */
+export function computeFingerprint(key: string): string {
+  const hash = createHash('sha256').update(key, 'utf-8').digest('hex');
+  return `sha256:${hash}`;
+}
+
+/**
+ * Generate a fingerprint for a Finding object.
+ * Uses the primary location (first in array).
+ */
+export function fingerprintFinding(finding: Omit<Finding, 'fingerprint'>): string {
+  const primaryLocation = finding.locations[0];
+  if (!primaryLocation) {
+    // No location - use tool + ruleId + message only
+    const key = buildFingerprintKey(
+      finding.tool,
+      finding.ruleId,
+      '__no_location__',
+      0,
+      finding.message
+    );
+    return computeFingerprint(key);
+  }
+
+  const key = buildFingerprintKey(
+    finding.tool,
+    finding.ruleId,
+    primaryLocation.path,
+    primaryLocation.startLine,
+    finding.message
+  );
+  return computeFingerprint(key);
+}
+
+/**
+ * Generate a short fingerprint for branch names.
+ * Returns first 12 characters of the hash (after sha256:).
+ */
+export function shortFingerprint(fingerprint: string): string {
+  const hash = fingerprint.replace('sha256:', '');
+  return hash.substring(0, 12);
+}
+
+/**
+ * Extract fingerprint from an issue body.
+ * Looks for the hidden marker: <!-- vibecop:fingerprint=sha256:... -->
+ */
+export function extractFingerprintFromBody(body: string): string | null {
+  const match = body.match(/<!--\s*vibecop:fingerprint=(sha256:[a-f0-9]+)\s*-->/i);
+  return match ? match[1] : null;
+}
+
+/**
+ * Generate the hidden fingerprint marker for issue bodies.
+ */
+export function generateFingerprintMarker(fingerprint: string): string {
+  return `<!-- vibecop:fingerprint=${fingerprint} -->`;
+}
+
+/**
+ * Extract run metadata from an issue body.
+ * Looks for: <!-- vibecop:run=N:lastSeen=TIMESTAMP -->
+ */
+export function extractRunMetadata(body: string): { run: number; lastSeen: string } | null {
+  const match = body.match(
+    /<!--\s*vibecop:run=(\d+):lastSeen=([^\s]+)\s*-->/i
+  );
+  if (match) {
+    return {
+      run: parseInt(match[1], 10),
+      lastSeen: match[2],
+    };
+  }
+  return null;
+}
+
+/**
+ * Generate the hidden run metadata marker for issue bodies.
+ */
+export function generateRunMetadataMarker(runNumber: number, timestamp: string): string {
+  return `<!-- vibecop:run=${runNumber}:lastSeen=${timestamp} -->`;
+}
+
+/**
+ * Check if two fingerprints match.
+ */
+export function fingerprintsMatch(a: string, b: string): boolean {
+  return a.toLowerCase() === b.toLowerCase();
+}
+
+/**
+ * Group findings by their fingerprint.
+ * Useful for detecting duplicates within a single run.
+ */
+export function groupByFingerprint<T extends { fingerprint: string }>(
+  items: T[]
+): Map<string, T[]> {
+  const groups = new Map<string, T[]>();
+  for (const item of items) {
+    const existing = groups.get(item.fingerprint);
+    if (existing) {
+      existing.push(item);
+    } else {
+      groups.set(item.fingerprint, [item]);
+    }
+  }
+  return groups;
+}
+
+/**
+ * Deduplicate findings by fingerprint.
+ * Returns unique findings (first occurrence of each fingerprint).
+ */
+export function deduplicateFindings<T extends { fingerprint: string }>(items: T[]): T[] {
+  const seen = new Set<string>();
+  const unique: T[] = [];
+  for (const item of items) {
+    if (!seen.has(item.fingerprint)) {
+      seen.add(item.fingerprint);
+      unique.push(item);
+    }
+  }
+  return unique;
+}

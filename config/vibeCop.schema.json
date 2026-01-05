@@ -1,0 +1,233 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/<OWNER>/vibeCop/config/vibeCop.schema.json",
+  "title": "vibeCop Configuration",
+  "description": "Configuration schema for vibeCop static analysis pipeline",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "integer",
+      "description": "Configuration schema version",
+      "const": 1
+    },
+    "schedule": {
+      "type": "object",
+      "description": "Schedule configuration",
+      "properties": {
+        "cadence": {
+          "type": "string",
+          "enum": ["daily", "weekly", "monthly"],
+          "default": "weekly",
+          "description": "How often the analysis should run"
+        },
+        "deep_scan": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable all tools regardless of cadence gating"
+        }
+      }
+    },
+    "trunk": {
+      "type": "object",
+      "description": "Trunk configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable Trunk linting"
+        },
+        "arguments": {
+          "type": "string",
+          "default": "check",
+          "description": "Arguments to pass to trunk"
+        },
+        "extra_args": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "description": "Additional arguments for trunk"
+        }
+      }
+    },
+    "tools": {
+      "type": "object",
+      "description": "Individual tool configurations",
+      "properties": {
+        "tsc": {
+          "$ref": "#/definitions/toolConfig"
+        },
+        "eslint": {
+          "$ref": "#/definitions/toolConfigWithPath"
+        },
+        "prettier": {
+          "$ref": "#/definitions/toolConfigWithPath"
+        },
+        "jscpd": {
+          "allOf": [
+            { "$ref": "#/definitions/toolConfig" },
+            {
+              "properties": {
+                "min_tokens": {
+                  "type": "integer",
+                  "default": 70,
+                  "description": "Minimum tokens for duplicate detection"
+                },
+                "threshold": {
+                  "type": "number",
+                  "default": 1,
+                  "description": "Duplication percentage threshold"
+                }
+              }
+            }
+          ]
+        },
+        "dependency_cruiser": {
+          "$ref": "#/definitions/toolConfigWithPath"
+        },
+        "knip": {
+          "$ref": "#/definitions/toolConfigWithPath"
+        },
+        "semgrep": {
+          "allOf": [
+            { "$ref": "#/definitions/toolConfig" },
+            {
+              "properties": {
+                "config": {
+                  "type": "string",
+                  "default": "p/default",
+                  "description": "Semgrep config to use"
+                },
+                "rules_path": {
+                  "type": "string",
+                  "description": "Path to local semgrep rules"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "issues": {
+      "type": "object",
+      "description": "GitHub issue configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable issue creation"
+        },
+        "label": {
+          "type": "string",
+          "default": "vibeCop",
+          "description": "Primary label for issues"
+        },
+        "max_new_per_run": {
+          "type": "integer",
+          "default": 25,
+          "minimum": 1,
+          "maximum": 100,
+          "description": "Maximum new issues to create per run"
+        },
+        "severity_threshold": {
+          "type": "string",
+          "enum": ["low", "medium", "high", "critical"],
+          "default": "medium",
+          "description": "Minimum severity to create issues"
+        },
+        "confidence_threshold": {
+          "type": "string",
+          "enum": ["low", "medium", "high"],
+          "default": "high",
+          "description": "Minimum confidence to create issues"
+        },
+        "close_resolved": {
+          "type": "boolean",
+          "default": false,
+          "description": "Auto-close issues when finding disappears"
+        },
+        "assignees": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "description": "Default assignees for new issues"
+        },
+        "project": {
+          "type": ["string", "null"],
+          "default": null,
+          "description": "GitHub project to add issues to (future)"
+        }
+      }
+    },
+    "output": {
+      "type": "object",
+      "description": "Output configuration",
+      "properties": {
+        "sarif": {
+          "type": "boolean",
+          "default": true,
+          "description": "Generate SARIF output"
+        },
+        "llm_json": {
+          "type": "boolean",
+          "default": true,
+          "description": "Generate LLM JSON output"
+        },
+        "artifact_retention_days": {
+          "type": "integer",
+          "default": 14,
+          "minimum": 1,
+          "maximum": 90,
+          "description": "Days to retain artifacts"
+        }
+      }
+    },
+    "llm": {
+      "type": "object",
+      "description": "AI agent configuration",
+      "properties": {
+        "agent_hint": {
+          "type": "string",
+          "default": "codex",
+          "description": "Hint for which AI agent will process issues"
+        },
+        "pr_branch_prefix": {
+          "type": "string",
+          "default": "vibecop/",
+          "description": "Branch prefix for agent-created PRs"
+        }
+      }
+    }
+  },
+  "required": ["version"],
+  "definitions": {
+    "toolEnablement": {
+      "oneOf": [
+        { "type": "boolean" },
+        { "type": "string", "enum": ["auto", "daily", "weekly", "monthly"] }
+      ],
+      "default": "auto"
+    },
+    "toolConfig": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "$ref": "#/definitions/toolEnablement",
+          "description": "When to run this tool"
+        }
+      }
+    },
+    "toolConfigWithPath": {
+      "allOf": [
+        { "$ref": "#/definitions/toolConfig" },
+        {
+          "properties": {
+            "config_path": {
+              "type": "string",
+              "description": "Path to tool config file"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

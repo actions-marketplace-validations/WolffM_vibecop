@@ -1,0 +1,54 @@
+# vibeCop Trunk Baseline Configuration
+#
+# This provides sensible defaults for Trunk-based linting.
+# Repos can override with their own .trunk/trunk.yaml
+
+version: 0.1
+cli:
+  version: 1.22.0
+
+lint:
+  enabled:
+    - eslint@8.57.0
+    - prettier@3.2.5
+    - markdownlint@0.39.0
+    - actionlint@1.6.27
+    - git-diff-check
+    - gitleaks@8.18.2
+    - oxipng@9.0.0
+    - svgo@3.2.0
+    - trufflehog@3.67.1
+    - yamllint@1.35.1
+
+  # TypeScript/JavaScript
+  definitions:
+    - name: eslint
+      files: [javascript, typescript, jsx, tsx]
+      commands:
+        - name: lint
+          run: eslint --format json ${target}
+          output: json
+          success_codes: [0, 1]
+
+  ignore:
+    - linters: [ALL]
+      paths:
+        - node_modules/**
+        - dist/**
+        - build/**
+        - .next/**
+        - coverage/**
+        - "**/*.min.js"
+        - "**/*.bundle.js"
+
+runtimes:
+  enabled:
+    - node@20.11.0
+    - python@3.11.0
+
+actions:
+  enabled:
+    - trunk-announce
+    - trunk-check-pre-push
+    - trunk-fmt-pre-commit
+    - trunk-upgrade-available

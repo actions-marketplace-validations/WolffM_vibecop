@@ -1,0 +1,44 @@
+{
+  "name": "vibecop",
+  "version": "0.1.0",
+  "description": "Cross-repo static analysis + actionable GitHub issue generator for AI agents",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint scripts/",
+    "build-sarif": "tsx scripts/build-sarif.ts",
+    "build-llm-json": "tsx scripts/build-llm-json.ts",
+    "create-issues": "tsx scripts/sarif-to-issues.ts",
+    "repo-detect": "tsx scripts/repo-detect.ts",
+    "analyze": "tsx scripts/analyze.ts"
+  },
+  "dependencies": {
+    "@octokit/rest": "^21.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "eslint": "^9.0.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.0",
+    "vitest": "^2.0.0"
+  },
+  "packageManager": "pnpm@9.0.0",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/<OWNER>/vibeCop.git"
+  },
+  "keywords": [
+    "static-analysis",
+    "github-actions",
+    "trunk",
+    "sarif",
+    "code-quality",
+    "ai-agent"
+  ]
+}
