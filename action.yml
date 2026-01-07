@@ -22,7 +22,7 @@ inputs:
   merge_strategy:
     description: "How to merge findings: none, same-file, same-rule, same-linter, same-tool"
     required: false
-    default: "same-linter"
+    default: "same-rule"
   skip_issues:
     description: "Skip GitHub issue creation/updates"
     required: false

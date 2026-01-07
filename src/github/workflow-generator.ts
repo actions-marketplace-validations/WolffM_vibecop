@@ -9,7 +9,7 @@ export interface WorkflowOptions {
   cadence: 'manual' | 'daily' | 'weekly' | 'monthly';
   severity: 'info' | 'low' | 'medium' | 'high' | 'critical';
   confidence: 'low' | 'medium' | 'high';
-  mergeStrategy: 'none' | 'same-file' | 'same-rule';
+  mergeStrategy: 'none' | 'same-file' | 'same-rule' | 'same-linter' | 'same-tool';
   disabledTools: string[];
 }
 

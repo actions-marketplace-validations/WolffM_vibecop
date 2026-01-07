@@ -239,6 +239,33 @@ export function getToolsToRun(
 }
 
 /**
+ * Check if running in GitHub Actions environment.
+ */
+function isGitHubActions(): boolean {
+  return process.env.GITHUB_ACTIONS === "true";
+}
+
+/**
+ * Log a group start (collapsible section in GitHub Actions).
+ */
+function startGroup(name: string): void {
+  if (isGitHubActions()) {
+    console.log(`::group::${name}`);
+  } else {
+    console.log(`\n▶ ${name}`);
+  }
+}
+
+/**
+ * Log a group end.
+ */
+function endGroup(): void {
+  if (isGitHubActions()) {
+    console.log("::endgroup::");
+  }
+}
+
+/**
  * Execute all applicable tools and collect findings.
  */
 export function executeTools(
@@ -247,6 +274,7 @@ export function executeTools(
   config: VibeCopConfig,
 ): Finding[] {
   const allFindings: Finding[] = [];
+  const toolResults: { name: string; count: number; status: "success" | "failed" }[] = [];
 
   console.log("\n=== Running Analysis Tools ===\n");
 
@@ -258,13 +286,27 @@ export function executeTools(
         ? String(toolConfig?.min_tokens || 70)
         : undefined);
 
+    startGroup(`🔍 ${tool.displayName}`);
+    
     try {
       const findings = tool.run(rootPath, configPath);
       allFindings.push(...findings);
-      console.log(`  ${tool.displayName}: ${findings.length} findings`);
+      toolResults.push({ name: tool.displayName, count: findings.length, status: "success" });
+      console.log(`✅ Found ${findings.length} findings`);
     } catch (error) {
-      console.warn(`  ${tool.displayName}: failed - ${error}`);
+      toolResults.push({ name: tool.displayName, count: 0, status: "failed" });
+      console.warn(`❌ Failed: ${error}`);
     }
+    
+    endGroup();
+  }
+
+  // Print summary table
+  console.log("\n=== Tool Summary ===\n");
+  for (const result of toolResults) {
+    const icon = result.status === "success" ? "✓" : "✗";
+    const countStr = result.status === "success" ? `${result.count} findings` : "failed";
+    console.log(`  ${icon} ${result.name}: ${countStr}`);
   }
 
   // Filter out findings from excluded directories (e.g., .trunk, node_modules)
@@ -294,7 +336,7 @@ export function executeTools(
 
   const excludedCount = allFindings.length - filteredFindings.length;
   if (excludedCount > 0) {
-    console.log(`  (Filtered ${excludedCount} findings from excluded directories)`);
+    console.log(`\n  (Filtered ${excludedCount} findings from excluded directories)`);
   }
 
   console.log(`\nTotal raw findings: ${filteredFindings.length}\n`);

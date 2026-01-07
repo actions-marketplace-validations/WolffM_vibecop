@@ -196,12 +196,24 @@ export async function processFindings(
     const fpMatch = fingerprintMap.get(finding.fingerprint);
     if (fpMatch) return { issue: fpMatch, matchedBy: "fingerprint" };
 
-    // Strategy 2: Tool + Rule
+    // Strategy 2: Tool + Rule (exact match)
     const toolRuleKey = `${finding.tool.toLowerCase()}|${finding.ruleId.toLowerCase()}`;
     const toolRuleMatch = getBestIssue(toolRuleMap, toolRuleKey);
     if (toolRuleMatch) return { issue: toolRuleMatch, matchedBy: `tool+rule(${toolRuleKey})` };
 
-    // Strategy 3: Rule only (catches trunk vs standalone tool mismatches)
+    // Strategy 3: Merged rule matching
+    // If this finding has a merged ruleId (e.g., "TS2578+TS2322"), check if any
+    // existing issue matches one of the individual rules
+    if (finding.ruleId.includes("+")) {
+      const individualRules = finding.ruleId.toLowerCase().split("+");
+      for (const rule of individualRules) {
+        const key = `${finding.tool.toLowerCase()}|${rule}`;
+        const match = getBestIssue(toolRuleMap, key);
+        if (match) return { issue: match, matchedBy: `merged-rule(${rule})` };
+      }
+    }
+
+    // Strategy 4: Rule only (catches trunk vs standalone tool mismatches)
     // Only use this for rule IDs that are clearly unique (e.g., B105 for bandit, MD001 for markdownlint)
     // Skip generic rule IDs that could appear in multiple tools
     const ruleOnlyKey = finding.ruleId.toLowerCase();
@@ -213,11 +225,24 @@ export async function processFindings(
       if (ruleOnlyMatch) return { issue: ruleOnlyMatch, matchedBy: `rule-only(${ruleOnlyKey})` };
     }
 
-    // Strategy 4: Normalized title (for legacy issues without fingerprints)
+    // Strategy 5: Normalized title (for legacy issues without fingerprints)
     const newTitle = generateIssueTitle(finding);
     const normalizedNewTitle = normalizeIssueTitle(newTitle);
     const titleMatch = getBestIssue(normalizedTitleMap, normalizedNewTitle);
     if (titleMatch) return { issue: titleMatch, matchedBy: `title(${normalizedNewTitle})` };
+
+    // Strategy 6: Sublinter matching (for trunk)
+    // If finding is from trunk, try to match by sublinter (markdownlint, yamllint, etc.)
+    if (finding.tool.toLowerCase() === "trunk") {
+      const sublinter = extractSublinter(finding);
+      for (const key of toolRuleMap.keys()) {
+        // Check if any existing issue is for the same sublinter
+        if (key.startsWith(`${sublinter}|`) || key.includes(`|${sublinter}`)) {
+          const match = getBestIssue(toolRuleMap, key);
+          if (match) return { issue: match, matchedBy: `sublinter(${sublinter})` };
+        }
+      }
+    }
 
     return { issue: undefined, matchedBy: "none" };
   }
@@ -355,11 +380,16 @@ export async function processFindings(
 }
 
 /**
- * Check if an issue is superseded by a merged finding.
- * An issue is superseded if:
- * 1. It's a trunk issue for a specific rule (e.g., "yamllint: quoted-strings")
- * 2. There's a current merged finding for the same sublinter (e.g., "yamllint (18 issues...)")
- * 3. The issue's fingerprint wasn't directly matched (meaning it's an old-style issue)
+ * Check if an existing issue is superseded by a merged finding.
+ *
+ * This handles merge strategy changes where:
+ * - Old issues were created with a finer-grained strategy (e.g., same-rule)
+ * - New run uses a coarser strategy (e.g., same-linter or same-tool)
+ * - Result: multiple old issues should be closed in favor of one merged issue
+ *
+ * Also handles:
+ * - Trunk issues being superseded by merged sublinter findings
+ * - Standalone tool issues being superseded by merged findings
  */
 function isSupersededByMergedFinding(
   issue: ExistingIssue,
@@ -374,32 +404,53 @@ function isSupersededByMergedFinding(
     return { superseded: false };
   }
 
-  const issueSublinter = extractSublinter(issue.title);
-  if (!issueSublinter || issueSublinter === issue.title) {
+  // Extract tool and rule from the issue title
+  const titleMatch = issue.title.match(
+    /\[vibeCheck\]\s+(\w+)(?::\s+(\S+))?/i
+  );
+  if (!titleMatch) {
     return { superseded: false };
   }
 
-  // Check if this is an old-style single-rule issue (has a colon in the title)
-  const isSingleRuleIssue = /\[vibeCheck\]\s+\w+:\s+\S+/.test(issue.title);
+  const issueToolOrSublinter = titleMatch[1].toLowerCase();
+  const issueRuleId = titleMatch[2]?.toLowerCase();
+
+  // Check if this looks like a single-rule issue (has a specific rule ID)
+  const isSingleRuleIssue = !!issueRuleId && !issueRuleId.includes("+");
   if (!isSingleRuleIssue) {
     return { superseded: false };
   }
 
-  // Look for a merged finding for the same sublinter
+  // Look for a merged finding that contains this issue's rule
   for (const finding of findings) {
-    if (finding.tool !== "trunk") continue;
+    const findingTool = finding.tool.toLowerCase();
+    
+    // Check if tools match (or sublinter matches for trunk)
+    const findingSublinter = extractSublinter(finding);
+    const toolMatches = 
+      findingTool === issueToolOrSublinter || 
+      findingSublinter === issueToolOrSublinter;
+    
+    if (!toolMatches) continue;
 
-    // Check if this finding is a merged sublinter finding
-    const findingSublinter = extractSublinter(finding.title);
-    if (findingSublinter !== issueSublinter) continue;
-
-    // Check if the finding is a merged one (has multiple rules or "issues across")
+    // Check if this finding is a merged one (has multiple rules)
     const isMergedFinding =
       finding.ruleId.includes("+") ||
       finding.title.includes("issues across") ||
       finding.title.includes("occurrences)");
 
-    if (isMergedFinding) {
+    if (!isMergedFinding) continue;
+
+    // Check if the merged finding contains this issue's rule
+    const mergedRules = finding.ruleId.toLowerCase().split("+");
+    if (mergedRules.includes(issueRuleId)) {
+      return { superseded: true, supersededBy: finding };
+    }
+
+    // For same-linter/same-tool strategy, any merged finding for the same tool supersedes
+    // single-rule issues even if the specific rule isn't in the merged ruleId
+    // (because the merged finding represents ALL rules from that tool/linter)
+    if (isMergedFinding && toolMatches) {
       return { superseded: true, supersededBy: finding };
     }
   }

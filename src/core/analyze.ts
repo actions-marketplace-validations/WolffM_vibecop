@@ -299,22 +299,22 @@ async function main() {
         console.error(`Error: ${(e as Error).message}`);
         process.exit(1);
       }
-    } else if (arg === "--merge" && args[i + 1]) {
+    } else if ((arg === "--merge" || arg === "--merge-strategy") && args[i + 1]) {
       options.mergeStrategy = args[++i] as MergeStrategy;
     } else if (arg === "--help" || arg === "-h") {
       console.log(`
 Usage: analyze [options]
 
 Options:
-  --root <path>        Root directory to analyze (default: cwd)
-  --cadence <cadence>  Analysis cadence: daily, weekly, monthly (default: weekly)
-  --config <path>      Path to vibecheck config file (default: vibecheck.yml)
-  --output <path>      Output directory (default: .vibecheck-output)
-  --skip-issues        Skip GitHub issue creation
-  --severity <level>   Severity threshold: info, low, medium, high, critical
-  --confidence <level> Confidence threshold: low, medium, high
-  --merge <strategy>   Merge strategy: same-rule, same-file, none
-  --help, -h           Show this help message
+  --root <path>          Root directory to analyze (default: cwd)
+  --cadence <cadence>    Analysis cadence: daily, weekly, monthly (default: weekly)
+  --config <path>        Path to vibecheck config file (default: vibecheck.yml)
+  --output <path>        Output directory (default: .vibecheck-output)
+  --skip-issues          Skip GitHub issue creation
+  --severity <level>     Severity threshold: info, low, medium, high, critical
+  --confidence <level>   Confidence threshold: low, medium, high
+  --merge-strategy <s>   Merge strategy: none, same-file, same-rule, same-linter, same-tool
+  --help, -h             Show this help message
 `);
       process.exit(0);
     }
