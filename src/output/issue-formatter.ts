@@ -16,7 +16,7 @@ import {
   getLanguageFromPath,
   getToolLanguage,
 } from "../utils/shared.js";
-import type { Finding, RunContext } from "../core/types.js";
+import { DEFAULT_CONFIG, type Finding, type RunContext } from "../core/types.js";
 
 // Re-export for backwards compatibility
 export { getSeverityEmoji, getToolLanguage };
@@ -516,7 +516,7 @@ ${referencesSection}
 - **Commit:** [\`${repo.commit.substring(0, 7)}\`](https://github.com/${repo.owner}/${repo.name}/commit/${repo.commit})
 - **Run:** #${runNumber}
 - **Generated:** ${timestamp}
-- **Branch suggestion:** \`vibecheck/fix-${shortFingerprint(finding.fingerprint)}\`
+- **Branch suggestion:** \`${DEFAULT_CONFIG.llm?.pr_branch_prefix ?? "vibecheck/fix-"}${shortFingerprint(finding.fingerprint)}\`
 
 </details>
 

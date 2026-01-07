@@ -27,7 +27,7 @@ import {
   getLabelsForFinding,
 } from "../output/issue-formatter.js";
 import { compareFindingsForSort, meetsThresholds } from "../scoring.js";
-import type { ExistingIssue, Finding, RunContext } from "../core/types.js";
+import { DEFAULT_CONFIG, type ExistingIssue, type Finding, type RunContext } from "../core/types.js";
 
 // ============================================================================
 // Issue Orchestration
@@ -65,14 +65,17 @@ export async function processFindings(
   }
 
   const { owner, repo } = repoInfo;
+  // Use DEFAULT_CONFIG as the source of truth for issue settings
+  // Assert non-null since DEFAULT_CONFIG.issues is defined in types.ts
+  const defaultIssues = DEFAULT_CONFIG.issues!;
   const issuesConfig = {
-    enabled: true,
-    label: "vibeCheck",
-    max_new_per_run: 25,
-    severity_threshold: "info" as const,
-    confidence_threshold: "low" as const,
-    close_resolved: true, // Auto-close issues when findings are no longer detected
-    ...context.config.issues,
+    enabled: context.config.issues?.enabled ?? defaultIssues.enabled,
+    label: context.config.issues?.label ?? defaultIssues.label,
+    max_new_per_run: context.config.issues?.max_new_per_run ?? defaultIssues.max_new_per_run,
+    severity_threshold: context.config.issues?.severity_threshold ?? defaultIssues.severity_threshold,
+    confidence_threshold: context.config.issues?.confidence_threshold ?? defaultIssues.confidence_threshold,
+    close_resolved: context.config.issues?.close_resolved ?? defaultIssues.close_resolved,
+    assignees: context.config.issues?.assignees ?? defaultIssues.assignees,
   };
 
   console.log(
