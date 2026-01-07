@@ -59,7 +59,7 @@ async function main() {
     skipIssues: true,
     severityThreshold: "low",
     confidenceThreshold: "medium",
-    mergeStrategy: "same-linter",
+    mergeStrategy: "same-rule", // Match action.yml default
     outputDir,
   });
 
