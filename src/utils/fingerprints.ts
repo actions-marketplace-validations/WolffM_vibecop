@@ -266,17 +266,18 @@ function buildMergeKey(finding: Finding, strategy: MergeStrategy): string {
     ? normalizePathForFingerprint(finding.locations[0].path)
     : "__no_file__";
 
-  // For test-fixtures, merge by tool to create 1-2 demo issues per tool
-  // This keeps demo issues minimal while still showcasing each tool
+  // For test-fixtures (demo issues), use a granular merge strategy:
+  // - One issue per sublinter (for trunk)
+  // - One issue per rule (for other tools)
+  // This showcases variety across tools and rules while keeping related findings grouped.
   if (isTestFixtureFinding(finding)) {
     // For trunk, split by sublinter (markdownlint, yamllint, eslint, etc.)
-    // This creates ~1 issue per sublinter instead of 1 giant trunk issue
     if (tool === "trunk") {
       const sublinter = extractSublinter(finding);
       return `demo|${sublinter}`;
     }
-    // For other tools, group all findings into one demo issue per tool
-    return `demo|${tool}`;
+    // For other tools, create one issue per rule to showcase variety
+    return `demo|${tool}|${ruleId}`;
   }
 
   // Normal merge logic for non-demo findings
