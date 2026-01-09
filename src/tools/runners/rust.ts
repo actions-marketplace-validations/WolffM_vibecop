@@ -5,8 +5,9 @@
  */
 
 import { spawnSync } from "node:child_process";
+import { relative } from "node:path";
 import type { Finding } from "../../core/types.js";
-import { isToolAvailable, safeParseJson } from "../tool-utils.js";
+import { isToolAvailable, safeParseJson, findCargoDirectories } from "../tool-utils.js";
 import {
   parseClippyOutput,
   parseCargoAuditOutput,
@@ -21,6 +22,7 @@ export const EXCLUDE_DIRS_RUST = "target,.cargo";
 
 /**
  * Run Clippy linter for Rust code.
+ * Searches for Cargo.toml in root and common subdirectories.
  */
 export function runClippy(rootPath: string, _configPath?: string): Finding[] {
   console.log("Running clippy...");
@@ -33,48 +35,74 @@ export function runClippy(rootPath: string, _configPath?: string): Finding[] {
       return [];
     }
 
-    // Run clippy with JSON message format
-    // Note: clippy outputs to stderr, so we need to capture that
-    const args = [
-      "clippy",
-      "--message-format=json",
-      "--all-targets",
-      "--",
-      "-W",
-      "clippy::all",
-      "-W",
-      "clippy::pedantic",
-    ];
+    // Find directories containing Cargo.toml
+    const cargoDirs = findCargoDirectories(rootPath);
+    if (cargoDirs.length === 0) {
+      console.log("  No Cargo.toml found, skipping clippy");
+      return [];
+    }
 
-    const result = spawnSync("cargo", args, {
-      cwd: rootPath,
-      encoding: "utf-8",
-      shell: true,
-      maxBuffer: MAX_OUTPUT_BUFFER,
-    });
+    const allFindings: Finding[] = [];
 
-    // Clippy outputs JSON messages to stdout, one per line
-    const output = result.stdout || "";
-    const messages: unknown[] = [];
+    for (const cargoDir of cargoDirs) {
+      console.log(`  Running clippy in ${relative(rootPath, cargoDir) || "."}`);
 
-    for (const line of output.split("\n")) {
-      const trimmed = line.trim();
-      if (trimmed.startsWith("{")) {
-        try {
-          const parsed = JSON.parse(trimmed);
-          // Only keep compiler_message type entries
-          if (parsed.reason === "compiler-message" && parsed.message) {
-            messages.push(parsed.message);
+      // Run clippy with JSON message format
+      const args = [
+        "clippy",
+        "--message-format=json",
+        "--all-targets",
+        "--",
+        "-W",
+        "clippy::all",
+        "-W",
+        "clippy::pedantic",
+      ];
+
+      const result = spawnSync("cargo", args, {
+        cwd: cargoDir,
+        encoding: "utf-8",
+        shell: true,
+        maxBuffer: MAX_OUTPUT_BUFFER,
+      });
+
+      // Clippy outputs JSON messages to stdout, one per line
+      const output = result.stdout || "";
+      const messages: unknown[] = [];
+
+      for (const line of output.split("\n")) {
+        const trimmed = line.trim();
+        if (trimmed.startsWith("{")) {
+          try {
+            const parsed = JSON.parse(trimmed);
+            // Only keep compiler_message type entries
+            if (parsed.reason === "compiler-message" && parsed.message) {
+              messages.push(parsed.message);
+            }
+          } catch {
+            // Skip malformed lines
           }
-        } catch {
-          // Skip malformed lines
         }
+      }
+
+      if (messages.length > 0) {
+        const findings = parseClippyOutput(messages);
+        // Adjust file paths to be relative to rootPath
+        for (const finding of findings) {
+          if (cargoDir !== rootPath) {
+            const relDir = relative(rootPath, cargoDir);
+            for (const loc of finding.locations) {
+              if (loc.path && !loc.path.startsWith(relDir)) {
+                loc.path = `${relDir}/${loc.path}`;
+              }
+            }
+          }
+        }
+        allFindings.push(...findings);
       }
     }
 
-    if (messages.length > 0) {
-      return parseClippyOutput(messages);
-    }
+    return allFindings;
   } catch (error) {
     console.warn("clippy failed:", error);
   }
@@ -84,6 +112,7 @@ export function runClippy(rootPath: string, _configPath?: string): Finding[] {
 
 /**
  * Run cargo-audit to check for security vulnerabilities in dependencies.
+ * Searches for Cargo.toml in root and common subdirectories.
  */
 export function runCargoAudit(rootPath: string): Finding[] {
   console.log("Running cargo-audit...");
@@ -96,21 +125,48 @@ export function runCargoAudit(rootPath: string): Finding[] {
       return [];
     }
 
-    const args = ["audit", "--json"];
-
-    const result = spawnSync("cargo", args, {
-      cwd: rootPath,
-      encoding: "utf-8",
-      shell: true,
-      maxBuffer: MAX_OUTPUT_BUFFER,
-    });
-
-    // cargo-audit outputs JSON to stdout
-    const output = result.stdout || "";
-    const parsed = safeParseJson<CargoAuditOutput>(output);
-    if (parsed) {
-      return parseCargoAuditOutput(parsed);
+    // Find directories containing Cargo.toml
+    const cargoDirs = findCargoDirectories(rootPath);
+    if (cargoDirs.length === 0) {
+      console.log("  No Cargo.toml found, skipping cargo-audit");
+      return [];
     }
+
+    const allFindings: Finding[] = [];
+
+    for (const cargoDir of cargoDirs) {
+      console.log(`  Running cargo-audit in ${relative(rootPath, cargoDir) || "."}`);
+
+      const args = ["audit", "--json"];
+
+      const result = spawnSync("cargo", args, {
+        cwd: cargoDir,
+        encoding: "utf-8",
+        shell: true,
+        maxBuffer: MAX_OUTPUT_BUFFER,
+      });
+
+      // cargo-audit outputs JSON to stdout
+      const output = result.stdout || "";
+      const parsed = safeParseJson<CargoAuditOutput>(output);
+      if (parsed) {
+        const findings = parseCargoAuditOutput(parsed);
+        // Adjust file paths to be relative to rootPath
+        for (const finding of findings) {
+          if (cargoDir !== rootPath) {
+            const relDir = relative(rootPath, cargoDir);
+            for (const loc of finding.locations) {
+              if (loc.path && !loc.path.startsWith(relDir)) {
+                loc.path = `${relDir}/${loc.path}`;
+              }
+            }
+          }
+        }
+        allFindings.push(...findings);
+      }
+    }
+
+    return allFindings;
   } catch (error) {
     console.warn("cargo-audit failed:", error);
   }
@@ -120,6 +176,7 @@ export function runCargoAudit(rootPath: string): Finding[] {
 
 /**
  * Run cargo-deny to check dependencies for licenses, bans, advisories, and sources.
+ * Searches for Cargo.toml in root and common subdirectories.
  */
 export function runCargoDeny(rootPath: string, configPath?: string): Finding[] {
   console.log("Running cargo-deny...");
@@ -132,36 +189,63 @@ export function runCargoDeny(rootPath: string, configPath?: string): Finding[] {
       return [];
     }
 
-    const args = ["deny", "check", "--format", "json"];
-    if (configPath) {
-      args.push("--config", configPath);
+    // Find directories containing Cargo.toml
+    const cargoDirs = findCargoDirectories(rootPath);
+    if (cargoDirs.length === 0) {
+      console.log("  No Cargo.toml found, skipping cargo-deny");
+      return [];
     }
 
-    const result = spawnSync("cargo", args, {
-      cwd: rootPath,
-      encoding: "utf-8",
-      shell: true,
-      maxBuffer: MAX_OUTPUT_BUFFER,
-    });
+    const allFindings: Finding[] = [];
 
-    // cargo-deny outputs JSON to stdout (one JSON object per line for each diagnostic)
-    const output = result.stdout || "";
-    const diagnostics: unknown[] = [];
+    for (const cargoDir of cargoDirs) {
+      console.log(`  Running cargo-deny in ${relative(rootPath, cargoDir) || "."}`);
 
-    for (const line of output.split("\n")) {
-      const trimmed = line.trim();
-      if (trimmed.startsWith("{")) {
-        try {
-          diagnostics.push(JSON.parse(trimmed));
-        } catch {
-          // Skip malformed lines
+      const args = ["deny", "check", "--format", "json"];
+      if (configPath) {
+        args.push("--config", configPath);
+      }
+
+      const result = spawnSync("cargo", args, {
+        cwd: cargoDir,
+        encoding: "utf-8",
+        shell: true,
+        maxBuffer: MAX_OUTPUT_BUFFER,
+      });
+
+      // cargo-deny outputs JSON to stdout (one JSON object per line for each diagnostic)
+      const output = result.stdout || "";
+      const diagnostics: unknown[] = [];
+
+      for (const line of output.split("\n")) {
+        const trimmed = line.trim();
+        if (trimmed.startsWith("{")) {
+          try {
+            diagnostics.push(JSON.parse(trimmed));
+          } catch {
+            // Skip malformed lines
+          }
         }
+      }
+
+      if (diagnostics.length > 0) {
+        const findings = parseCargoDenyOutput({ diagnostics } as CargoDenyOutput);
+        // Adjust file paths to be relative to rootPath
+        for (const finding of findings) {
+          if (cargoDir !== rootPath) {
+            const relDir = relative(rootPath, cargoDir);
+            for (const loc of finding.locations) {
+              if (loc.path && !loc.path.startsWith(relDir)) {
+                loc.path = `${relDir}/${loc.path}`;
+              }
+            }
+          }
+        }
+        allFindings.push(...findings);
       }
     }
 
-    if (diagnostics.length > 0) {
-      return parseCargoDenyOutput({ diagnostics } as CargoDenyOutput);
-    }
+    return allFindings;
   } catch (error) {
     console.warn("cargo-deny failed:", error);
   }
