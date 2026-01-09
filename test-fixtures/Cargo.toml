@@ -11,37 +11,13 @@ name = "rust-issues"
 path = "rust-issues.rs"
 
 [dependencies]
-# Intentionally vulnerable dependencies for cargo-audit testing
-# These old versions have known security advisories in RustSec
+# Intentionally vulnerable/problematic dependencies for testing
 
-# RUSTSEC-2020-0071: Memory safety issue in chrono (localtime_r)
-chrono = "0.4.19"
-
-# RUSTSEC-2021-0124: Data race in tokio (unix signal handling)
-tokio = { version = "1.8.0", features = ["full"] }
-
-# RUSTSEC-2022-0006: Regex denial of service
-regex = "1.5.4"
-
-# RUSTSEC-2021-0139: ansi_term unmaintained
+# RUSTSEC-2021-0139: ansi_term unmaintained (also banned in deny.toml)
 ansi_term = "0.12.1"
 
-# RUSTSEC-2020-0159: chrono uses localtime_r unsoundly
+# RUSTSEC-2020-0159: time 0.1 is unsound (also banned in deny.toml for <0.3)
 time = "0.1.44"
 
-# RUSTSEC-2021-0127: serde_yaml/unsafe-libyaml vulnerability
-serde_yaml = "0.8.23"
-
-# RUSTSEC-2022-0090: libsqlite3-sys outdated
-rusqlite = "0.26.0"
-
-[lints.clippy]
-# Enable strict Clippy lints for testing
-unwrap_used = "warn"
-expect_used = "warn"
-panic = "warn"
-todo = "warn"
-unimplemented = "warn"
-cognitive_complexity = "warn"
-too_many_arguments = "warn"
-missing_safety_doc = "warn"
+# RUSTSEC-2020-0071: chrono has localtime_r issues
+chrono = "0.4.19"
