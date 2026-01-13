@@ -253,7 +253,6 @@ export function runKnip(rootPath: string, configPath?: string): Finding[] {
       }
     }
 
-    console.log(`  Local knip in package.json: ${hasLocalKnip}`);
 
     const args = ["--reporter", "json"];
 
@@ -282,7 +281,6 @@ export function runKnip(rootPath: string, configPath?: string): Finding[] {
       // Check if pnpm is available (pnpm-lock.yaml exists)
       const hasPnpm = existsSync(join(rootPath, "pnpm-lock.yaml"));
       if (hasPnpm) {
-        console.log("  Running via pnpm exec");
         // Set NODE_PATH to ensure knip can resolve modules from the target repo
         const nodeModulesPath = join(rootPath, "node_modules");
         const env = {
@@ -296,11 +294,9 @@ export function runKnip(rootPath: string, configPath?: string): Finding[] {
           env,
         });
       } else {
-        console.log("  Running via npx (local package)");
         result = runTool("knip", args, { cwd: rootPath, useNpx: true });
       }
     } else {
-      console.log("  Running via npx (global)");
       result = runTool("knip", args, { cwd: rootPath, useNpx: true });
     }
 
@@ -308,28 +304,13 @@ export function runKnip(rootPath: string, configPath?: string): Finding[] {
     const output = result.stdout || "";
     const stderr = result.stderr || "";
 
-    // Debug: log exit code and output length
-    console.log(`  Exit code: ${result.status}, stdout: ${output.length} chars, stderr: ${stderr.length} chars`);
-
-    // If exit code is 2, knip encountered an error - show the output for debugging
+    // Log error if knip crashed (exit code 2)
     if (result.status === 2) {
-      console.log(`  Error - stdout: ${output.substring(0, 500)}`);
-      console.log(`  Error - stderr: ${stderr.substring(0, 500)}`);
-    }
-
-    // Check for known non-fatal errors (e.g., missing ESLint dependencies)
-    // These don't prevent knip from running, just from analyzing ESLint config
-    if (stderr.includes("Error loading") && stderr.includes("eslint.config")) {
-      console.log(
-        "  Note: ESLint config loading failed (missing dependencies in target repo)",
-      );
-      console.log("  Knip will still analyze other aspects of the codebase");
+      console.log(`  knip error: ${stderr.substring(0, 200)}`);
     }
 
     const parsed = safeParseJson<KnipOutput>(output);
     if (parsed) {
-      // Debug: log what knip found
-      console.log(`  Raw knip output: files=${parsed.files?.length || 0}, issues=${parsed.issues?.length || 0}`);
       const findings = parseKnipOutput(parsed);
       console.log(`  Found ${findings.length} findings`);
       return findings;
