@@ -268,6 +268,9 @@ export function runKnip(rootPath: string, configPath?: string): Finding[] {
     const output = result.stdout || "";
     const stderr = result.stderr || "";
 
+    // Debug: log exit code and output length
+    console.log(`  Exit code: ${result.status}, stdout: ${output.length} chars, stderr: ${stderr.length} chars`);
+
     // Check for known non-fatal errors (e.g., missing ESLint dependencies)
     // These don't prevent knip from running, just from analyzing ESLint config
     if (stderr.includes("Error loading") && stderr.includes("eslint.config")) {
@@ -279,12 +282,16 @@ export function runKnip(rootPath: string, configPath?: string): Finding[] {
 
     const parsed = safeParseJson<KnipOutput>(output);
     if (parsed) {
+      // Debug: log what knip found
+      console.log(`  Raw knip output: files=${parsed.files?.length || 0}, issues=${parsed.issues?.length || 0}`);
       const findings = parseKnipOutput(parsed);
       console.log(`  Found ${findings.length} findings`);
       return findings;
     } else if (stderr && !stderr.includes("Error loading")) {
       // Only log stderr if it's not the known ESLint loading issue
       console.log(`  stderr: ${stderr.substring(0, 200)}`);
+    } else if (!output.trim()) {
+      console.log("  Warning: knip returned empty output");
     }
   } catch (error) {
     console.warn("knip failed:", error);
