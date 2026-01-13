@@ -236,8 +236,15 @@ export function runKnip(rootPath: string, configPath?: string): Finding[] {
   console.log("Running knip...");
 
   try {
-    // Always use npx to ensure local knip is used with access to local node_modules
+    // Prefer local knip from node_modules to ensure it has access to local dependencies
     // Global knip can't resolve local dependencies (e.g., eslint config imports)
+    const localKnip = join(rootPath, "node_modules", ".bin", "knip");
+    const useLocalBinary = existsSync(localKnip);
+
+    if (useLocalBinary) {
+      console.log("  Using local knip from node_modules");
+    }
+
     const args = ["--reporter", "json"];
 
     // Check for config file (optional)
@@ -258,7 +265,10 @@ export function runKnip(rootPath: string, configPath?: string): Finding[] {
       console.log("  Running with auto-detection (no config file)");
     }
 
-    const result = runTool("knip", args, { cwd: rootPath, useNpx: true });
+    // Use local binary if available, otherwise fall back to npx
+    const result = useLocalBinary
+      ? spawnSync(localKnip, args, { cwd: rootPath, encoding: "utf-8", shell: true })
+      : runTool("knip", args, { cwd: rootPath, useNpx: true });
 
     // knip outputs JSON to stdout, exits with code 1 if issues found
     const output = result.stdout || "";
