@@ -374,6 +374,8 @@ export function runEslint(rootPath: string): Finding[] {
       return [];
     }
 
+    console.log(`  Scanning directories: ${srcDirs.join(", ")}`);
+
     // Run ESLint with JSON output
     const args = [
       ...srcDirs,
@@ -389,6 +391,13 @@ export function runEslint(rootPath: string): Finding[] {
 
     if (!output.trim()) {
       console.log("  No output from ESLint");
+      // Log stderr to help diagnose issues
+      if (result.stderr) {
+        console.log(`  stderr: ${result.stderr.substring(0, 500)}`);
+      }
+      if (result.status !== null && result.status !== 0 && result.status !== 1) {
+        console.log(`  Exit code: ${result.status}`);
+      }
       return [];
     }
 
