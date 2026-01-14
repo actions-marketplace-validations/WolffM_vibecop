@@ -210,20 +210,46 @@ export function groupByFingerprint<T extends { fingerprint: string }>(
 }
 
 /**
- * Deduplicate findings by fingerprint.
- * Returns unique findings (first occurrence of each fingerprint).
+ * Rank autofix values for comparison.
+ * Higher is better (safe > requires_review > none).
  */
-export function deduplicateFindings<T extends { fingerprint: string }>(
+function autofixRank(autofix: string | undefined): number {
+  switch (autofix) {
+    case "safe": return 2;
+    case "requires_review": return 1;
+    default: return 0;
+  }
+}
+
+/**
+ * Deduplicate findings by fingerprint.
+ * When duplicates are found, keeps the one with the best autofix value
+ * (safe > requires_review > none) to preserve autofix information from
+ * standalone tool runs over Trunk-wrapped findings.
+ */
+export function deduplicateFindings<T extends { fingerprint: string; autofix?: string }>(
   items: T[],
 ): T[] {
-  const seen = new Set<string>();
+  const seen = new Map<string, { index: number; item: T }>();
   const unique: T[] = [];
+
   for (const item of items) {
-    if (!seen.has(item.fingerprint)) {
-      seen.add(item.fingerprint);
+    const existing = seen.get(item.fingerprint);
+    if (!existing) {
+      seen.set(item.fingerprint, { index: unique.length, item });
       unique.push(item);
+    } else {
+      // Compare autofix values - keep the better one
+      const existingRank = autofixRank(existing.item.autofix);
+      const newRank = autofixRank(item.autofix);
+      if (newRank > existingRank) {
+        // Replace with the better autofix finding
+        unique[existing.index] = item;
+        seen.set(item.fingerprint, { index: existing.index, item });
+      }
     }
   }
+
   return unique;
 }
 
