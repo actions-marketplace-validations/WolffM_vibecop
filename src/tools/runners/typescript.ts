@@ -433,13 +433,22 @@ export function runEslint(rootPath: string): Finding[] {
       return [];
     }
 
-    const parsed = safeParseJson<EslintOutput>(output);
+    // pnpm exec may prefix output with messages - try to find JSON array
+    let jsonOutput = output;
+    const jsonStart = output.indexOf("[");
+    if (jsonStart > 0) {
+      console.log(`  Note: Extracting JSON from position ${jsonStart}`);
+      jsonOutput = output.substring(jsonStart);
+    }
+
+    const parsed = safeParseJson<EslintOutput>(jsonOutput);
     if (parsed) {
       const findings = parseEslintOutput(parsed);
       console.log(`  Found ${findings.length} findings`);
       return findings;
     } else {
       console.log("  Failed to parse ESLint output");
+      console.log(`  Output preview: ${output.substring(0, 300)}`);
       if (result.stderr) {
         console.log(`  stderr: ${result.stderr.substring(0, 200)}`);
       }
