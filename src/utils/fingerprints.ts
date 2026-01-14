@@ -549,13 +549,13 @@ function mergeFindings(
     title = base.title;
   }
 
-  // Compute best autofix level from all findings
-  // Priority: "safe" > "requires_review" > "none"
-  const autofixPriority = { safe: 2, requires_review: 1, none: 0 };
-  let bestAutofix = base.autofix;
+  // Compute most conservative autofix level from all findings
+  // Use MINIMUM to be safe - if any finding can't be auto-fixed, the merged finding shouldn't either
+  const autofixPriority = { none: 0, requires_review: 1, safe: 2 };
+  let worstAutofix = base.autofix;
   for (const f of findings) {
-    if (autofixPriority[f.autofix] > autofixPriority[bestAutofix]) {
-      bestAutofix = f.autofix;
+    if (autofixPriority[f.autofix] < autofixPriority[worstAutofix]) {
+      worstAutofix = f.autofix;
     }
   }
 
@@ -566,7 +566,7 @@ function mergeFindings(
     evidence: combinedEvidence,
     message,
     title,
-    autofix: bestAutofix,
+    autofix: worstAutofix,
     // For same-linter and same-file-tool merges, update ruleId to reflect multiple rules
     ruleId:
       (strategy === "same-linter" || strategy === "same-file-tool") && uniqueRules.length > 1
