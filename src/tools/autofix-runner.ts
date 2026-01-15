@@ -140,11 +140,19 @@ function runAutofixCommand(
   // Determine whether to use npx
   const useNpx = command.useNpx ?? detectedUseNpx;
 
+  // Build the command args
+  // For ruff requires_review fixes, add --unsafe-fixes flag
+  let commandArgs = [...command.args];
+  if (tool === "ruff" && level === "requires_review") {
+    // Ruff's "unsafe" fixes require --unsafe-fixes flag to actually apply
+    commandArgs.push("--unsafe-fixes");
+  }
+
   // Build the command
   const cmd = useNpx ? "npx" : command.command;
   const args = useNpx
-    ? [command.command, ...command.args, ...normalizedFiles]
-    : [...command.args, ...normalizedFiles];
+    ? [command.command, ...commandArgs, ...normalizedFiles]
+    : [...commandArgs, ...normalizedFiles];
 
   const fullCommand = `${cmd} ${args.join(" ")}`;
   console.log(`  Running: ${fullCommand}`);
